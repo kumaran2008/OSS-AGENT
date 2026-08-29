@@ -1,0 +1,7 @@
+.env
+workspace/
+__pycache__/
+*.pyc
+.pytest_cache/
+logs/
+logs/dashboard.html
