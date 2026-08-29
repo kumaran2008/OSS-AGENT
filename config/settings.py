@@ -15,6 +15,7 @@ class Settings:
     OPENROUTER_ANALYSIS_MODEL: str = os.getenv("OPENROUTER_ANALYSIS_MODEL", "openai/gpt-4o-mini")
      
     AUTO_APPROVE_COMMANDS: bool = os.getenv("AUTO_APPROVE_COMMANDS", "false").lower() == "true"
+    ENABLE_SPRITE_UI: bool = os.getenv("ENABLE_SPRITE_UI", "false").lower() == "true"
     MAX_DEBUG_RETRIES: int = int(os.getenv("MAX_DEBUG_RETRIES", "3"))
 
     # How many top search results to consider before picking one (adds diversity)
@@ -27,6 +28,9 @@ class Settings:
     MODELS_REVIEW: str = os.getenv("MODELS_REVIEW", "")
     MODELS_DEBUG: str = os.getenv("MODELS_DEBUG", "")
     MODELS_ANALYSIS: str = os.getenv("MODELS_ANALYSIS", "")
+    ENABLE_DYNAMIC_MODEL_FALLBACK: bool = os.getenv("ENABLE_DYNAMIC_MODEL_FALLBACK", "false").lower() == "true"
+    MAX_DYNAMIC_MODEL_PRICE_PER_MILLION: float = float(os.getenv("MAX_DYNAMIC_MODEL_PRICE_PER_MILLION", "2.0"))
+    DYNAMIC_MODEL_CACHE_TTL_SECONDS: int = int(os.getenv("DYNAMIC_MODEL_CACHE_TTL_SECONDS", "600"))
 
     def get_task_chains(self) -> dict:
         def chain_or_fallback(env_value: str, fallback_model: str) -> list:

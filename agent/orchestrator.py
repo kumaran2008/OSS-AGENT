@@ -19,6 +19,7 @@ from agent.coding_agent import CodingAgent
 from agent.debugging_agent import DebuggingAgent
 from agent.reviewer_agent import ReviewerAgent
 from repository.context import RepositoryContext
+from ui.sprite_renderer import sprite
 
 
 def _confirm(prompt: str) -> bool:
@@ -37,10 +38,10 @@ class Orchestrator:
         self.repo_agent = RepositoryAgent()
         self.issue_agent = IssueAgent(self.router)
         self.reviewer_agent = ReviewerAgent(self.router)
+
     def run(self, search_query: str = None, target_repo: str = None, target_issue: int = None):
         try:
             self._run(search_query, target_repo, target_issue)
-
         except KeyboardInterrupt:
             print("\nInterrupted by user. Exiting cleanly.")
         except Exception as e:
@@ -81,6 +82,8 @@ class Orchestrator:
                 labels=[l["name"] for l in raw_issue.get("labels", [])],
             )
         else:
+            sprite.set_state("thinking")
+            sprite.newline()
             print("\n=== Searching issues ===")
             issues_raw = self.issue_mgr.search_issues(repo.full_name, limit=5)
             if not issues_raw:
@@ -91,6 +94,7 @@ class Orchestrator:
                 return
 
             issue = self.issue_agent.rank_and_select(issues_raw)
+
         run_logger.set_repo_issue(repo.full_name, issue.number, issue.title)
 
         print(f"""
@@ -105,11 +109,14 @@ Labels: {issue.labels}
 """)
         if not _confirm("Proceed with this issue?"):
             print("Aborted by user.")
+            sprite.set_state("idle")
             run_logger.set_outcome("aborted")
             run_logger.attach_model_calls(self.router.call_log)
             run_logger.finalize()
             return
 
+        sprite.set_state("working")
+        sprite.newline()
         print("\n=== Forking repository ===")
         fork_data = self.fork_mgr.create_fork(repo.full_name)
         fork_owner = fork_data["owner"]["login"]
@@ -136,6 +143,8 @@ Labels: {issue.labels}
 
         context = RepositoryContext(repo_dir).assemble_context()
 
+        sprite.set_state("thinking")
+        sprite.newline()
         print("\n=== Generating implementation plan ===")
         plan = coding_agent.generate_plan(issue, context)
         print(f"""
@@ -150,6 +159,7 @@ Steps:
 """)
         if not plan.files_to_modify:
             print("Plan produced no files to modify — nothing to do. Stopping.")
+            sprite.set_state("sad")
             run_logger.set_outcome("failed")
             run_logger.note("planning produced empty file list")
             run_logger.attach_model_calls(self.router.call_log)
@@ -158,6 +168,7 @@ Steps:
 
         if not _confirm("Proceed with implementation?"):
             print("Aborted by user.")
+            sprite.set_state("idle")
             run_logger.set_outcome("aborted")
             run_logger.attach_model_calls(self.router.call_log)
             run_logger.finalize()
@@ -165,12 +176,18 @@ Steps:
 
         branch_name = self._create_working_branch(git_tools, issue.number)
 
+        sprite.set_state("working")
+        sprite.newline()
         coding_agent.apply_plan(issue, plan)
 
+        sprite.set_state("thinking")
+        sprite.newline()
         print("\n=== Running tests ===")
         code, output = test_runner.run_suite()
         retries = 0
         while code != 0 and retries < settings.MAX_DEBUG_RETRIES:
+            sprite.set_state("troubled")
+            sprite.newline()
             print(f"Tests failed (attempt {retries + 1}/{settings.MAX_DEBUG_RETRIES}). Output:\n{output[:2000]}")
             for file_path in plan.files_to_modify:
                 debug_agent.attempt_fix(file_path, output)
@@ -180,6 +197,7 @@ Steps:
         if code != 0:
             print("Tests still failing after max retries. Stopping before push.")
             print(output[:3000])
+            sprite.set_state("sad")
             run_logger.set_test_result(passed=False, retries_used=retries)
             run_logger.set_outcome("failed")
             run_logger.attach_model_calls(self.router.call_log)
@@ -193,6 +211,7 @@ Steps:
         diff = git_tools.get_diff()
         if not diff.strip():
             print("Git diff is empty — no actual changes were made. Stopping.")
+            sprite.set_state("sad")
             run_logger.set_test_result(passed=True, retries_used=retries)
             run_logger.set_outcome("failed")
             run_logger.note("empty diff")
@@ -200,6 +219,8 @@ Steps:
             run_logger.finalize()
             return
 
+        sprite.set_state("thinking")
+        sprite.newline()
         print("\n=== Requesting code review ===")
         review = self.reviewer_agent.review(issue, diff)
 
@@ -216,6 +237,7 @@ Review feedback: {review.feedback}
 """)
         if not review.approved:
             print("Reviewer did not approve. Stopping before push.")
+            sprite.set_state("sad")
             run_logger.set_test_result(passed=True, retries_used=retries)
             run_logger.set_review_result(approved=False)
             run_logger.set_outcome("failed")
@@ -234,6 +256,7 @@ Review feedback: {review.feedback}
 
         if not _confirm("Create commit and push?"):
             print("Aborted by user.")
+            sprite.set_state("idle")
             run_logger.set_test_result(passed=True, retries_used=retries)
             run_logger.set_review_result(approved=True)
             run_logger.set_outcome("aborted")
@@ -267,6 +290,8 @@ Description:
         pr = self.pr_mgr.create_pull_request(
             repo.full_name, pr_title, head=f"{fork_owner}:{branch_name}", base=repo.default_branch, body=pr_body
         )
+        sprite.set_state("happy")
+        sprite.newline()
         print(f"Pull request created: {pr.get('html_url')}")
         run_logger.set_test_result(passed=True, retries_used=retries)
         run_logger.set_review_result(approved=True)
@@ -296,6 +321,8 @@ Description:
                 language=raw.get("language") or "",
             )
 
+        sprite.set_state("thinking")
+        sprite.newline()
         print("\n=== Searching repositories ===")
         repos_raw = self.repo_mgr.search_repositories(
             search_query, limit=settings.REPO_SELECTION_POOL_SIZE
@@ -330,3 +357,5 @@ Description:
 
         suffixed_name = f"{base_name}-{int(time.time())}"
         print(f"Branch '{base_name}' already existed — using '{suffixed_name}' instead.")
+        git_tools.checkout_branch(suffixed_name)
+        return suffixed_name
