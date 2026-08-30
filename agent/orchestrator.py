@@ -20,6 +20,7 @@ from agent.debugging_agent import DebuggingAgent
 from agent.reviewer_agent import ReviewerAgent
 from repository.context import RepositoryContext
 from ui.sprite_renderer import sprite
+from tools.repo_guard import format_guard_report
 
 
 def _confirm(prompt: str) -> bool:
@@ -141,6 +142,18 @@ Labels: {issue.labels}
         coding_agent = CodingAgent(self.router, fs)
         debug_agent = DebuggingAgent(self.router, fs)
 
+        print("\n=== Checking host environment / repo dependencies ===")
+        guard_result = test_runner.preflight_check()
+        if not guard_result.ok:
+            sprite.set_state("sad")
+            sprite.newline()
+            print(format_guard_report(guard_result))
+            run_logger.set_outcome("failed_missing_repo_dependency")
+            run_logger.note("host environment or repo dependencies missing — see guard report")
+            run_logger.attach_model_calls(self.router.call_log)
+            run_logger.finalize()
+            return
+
         context = RepositoryContext(repo_dir).assemble_context()
 
         sprite.set_state("thinking")
@@ -184,6 +197,19 @@ Steps:
         sprite.newline()
         print("\n=== Running tests ===")
         code, output = test_runner.run_suite()
+
+        if code == -2:
+            # Host/dependency problem, not a code problem — never spend an
+            # LLM call trying to "fix" a missing system binary.
+            sprite.set_state("sad")
+            sprite.newline()
+            print(output)
+            run_logger.set_outcome("failed_missing_repo_dependency")
+            run_logger.note("host environment or repo dependencies missing during test run")
+            run_logger.attach_model_calls(self.router.call_log)
+            run_logger.finalize()
+            return
+
         retries = 0
         while code != 0 and retries < settings.MAX_DEBUG_RETRIES:
             sprite.set_state("troubled")
@@ -192,6 +218,17 @@ Steps:
             for file_path in plan.files_to_modify:
                 debug_agent.attempt_fix(file_path, output)
             code, output = test_runner.run_suite()
+
+            if code == -2:
+                sprite.set_state("sad")
+                sprite.newline()
+                print(output)
+                run_logger.set_outcome("failed_missing_repo_dependency")
+                run_logger.note("host environment or repo dependencies missing during debug retry")
+                run_logger.attach_model_calls(self.router.call_log)
+                run_logger.finalize()
+                return
+
             retries += 1
 
         if code != 0:
