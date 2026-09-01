@@ -1,3 +1,5 @@
+import re
+from typing import Set
 from pathlib import Path
 from typing import Tuple
 from tools.shell import SafeShell
@@ -33,3 +35,25 @@ class TestRunner:
             code, stdout, stderr = self.shell.execute("flake8 .", auto_approve_override=True)
             return code, stdout + "\n" + stderr
         return 0, "No linter config detected. Skipping."
+
+def parse_failing_tests(test_output: str) -> Set[str]:
+    """
+    Extracts specific failing test node IDs from test output to enable
+    precise baseline vs post-patch differential comparisons.
+    """
+    failing_nodes = set()
+    
+    # Matches Pytest summary failures: FAILED tests/test_proxy.py::test_use_proxy
+    pytest_failures = re.findall(r"FAILED\s+([^\s:]+(?:::[^\s:]+)+)", test_output)
+    failing_nodes.update(pytest_failures)
+    
+    # Matches Pytest ERROR setup/teardown failures: ERROR tests/test_proxy.py::test_use_proxy
+    pytest_errors = re.findall(r"ERROR\s+([^\s:]+(?:::[^\s:]+)+)", test_output)
+    failing_nodes.update(pytest_errors)
+    
+    # Matches standard unittest failure patterns: FAIL: test_proxy (tests.test_proxy.ProxyTestCase)
+    unittest_failures = re.findall(r"(?:FAIL|ERROR):\s+([^\s]+)\s+\(([^)]+)\)", test_output)
+    for test_name, test_class in unittest_failures:
+        failing_nodes.add(f"{test_class}::{test_name}")
+        
+    return failing_nodes

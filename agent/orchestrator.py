@@ -21,7 +21,7 @@ from agent.reviewer_agent import ReviewerAgent
 from repository.context import RepositoryContext
 from ui.sprite_renderer import sprite
 from tools.repo_guard import format_guard_report
-
+from tools.tests import parse_failing_tests
 
 def _confirm(prompt: str) -> bool:
     return input(f"{prompt} [y/N]: ").strip().lower() == "y"
@@ -189,6 +189,21 @@ Steps:
 
         branch_name = self._create_working_branch(git_tools, issue.number)
 
+        print("\n=== Capturing pre-patch test baseline ===")
+        baseline_code, baseline_output = test_runner.run_suite()
+        if baseline_code == -2:
+            sprite.set_state("sad")
+            sprite.newline()
+            print(baseline_output)
+            run_logger.set_outcome("failed_missing_repo_dependency")
+            run_logger.note("host environment issue detected in baseline, before any patch applied")
+            run_logger.attach_model_calls(self.router.call_log)
+            run_logger.finalize()
+            return
+        if baseline_code != 0:
+            print("Note: this repo's test suite has pre-existing failures unrelated to our change.")
+            print("Only NEW failures introduced by the patch will trigger the debug loop.")
+
         sprite.set_state("working")
         sprite.newline()
         coding_agent.apply_plan(issue, plan)
@@ -197,6 +212,23 @@ Steps:
         sprite.newline()
         print("\n=== Running tests ===")
         code, output = test_runner.run_suite()
+
+        
+        baseline_failures = parse_failing_tests(baseline_output)
+        post_failures = parse_failing_tests(output)
+        new_failures = post_failures - baseline_failures
+
+        # If post-patch failures contain NO NEW failing tests compared to baseline,
+        # ignore pre-existing errors and proceed to review.
+        if code != 0 and len(new_failures) == 0:
+            print("\n[Test Baseline Guard] Post-patch failures are identical to pre-patch baseline.")
+            print("No new regressions introduced by our patch. Continuing to review.")
+            code = 0
+        elif len(new_failures) > 0:
+            print(f"\n[Test Baseline Guard] Detected {len(new_failures)} NEW regression(s) introduced by patch:")
+            for f in new_failures:
+                print(f"  - {f}")
+
 
         if code == -2:
             # Host/dependency problem, not a code problem — never spend an

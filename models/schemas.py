@@ -43,7 +43,7 @@ class ModelCallLog(BaseModel):
     completion_tokens: int = 0
     succeeded: bool = True
     error: Optional[str] = None
-
+    was_dynamic: bool = False
 
 class RunLog(BaseModel):
     run_id: str

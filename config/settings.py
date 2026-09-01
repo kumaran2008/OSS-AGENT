@@ -9,7 +9,9 @@ load_dotenv()
 class Settings:
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
     GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
-
+    ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
     OPENROUTER_CODING_MODEL: str = os.getenv("OPENROUTER_CODING_MODEL", "anthropic/claude-3.5-sonnet")
     OPENROUTER_REVIEW_MODEL: str = os.getenv("OPENROUTER_REVIEW_MODEL", "anthropic/claude-3.5-sonnet")
     OPENROUTER_ANALYSIS_MODEL: str = os.getenv("OPENROUTER_ANALYSIS_MODEL", "openai/gpt-4o-mini")
@@ -45,6 +47,24 @@ class Settings:
             "debug": chain_or_fallback(self.MODELS_DEBUG, self.OPENROUTER_CODING_MODEL),
             "analysis": chain_or_fallback(self.MODELS_ANALYSIS, self.OPENROUTER_ANALYSIS_MODEL),
         }
+    def validate_task_chains(self) -> None:
+        """Enforces genuine independent review: the model that writes the
+        code must not be the same one that reviews it. Checks the first
+        (primary) model in each chain — if they match, the review adds
+        no real independence."""
+        chains = self.get_task_chains()
+        coder_primary = chains["coding"][0] if chains.get("coding") else None
+        reviewer_primary = chains["review"][0] if chains.get("review") else None
+
+        if coder_primary and reviewer_primary and coder_primary == reviewer_primary:
+            print("=" * 60)
+            print("CONFIGURATION WARNING")
+            print("=" * 60)
+            print(f"MODELS_CODING and MODELS_REVIEW both start with '{coder_primary}'.")
+            print("The reviewer should differ from the coder for a genuinely")
+            print("independent review. Consider setting a different primary")
+            print("model in MODELS_REVIEW in your .env.")
+            print("=" * 60)
     BASE_DIR: Path = Path(__file__).parent.parent.resolve()
     WORKSPACE_DIR: Path = BASE_DIR / os.getenv("WORKSPACE_DIR", "workspace")
     LOGS_DIR: Path = BASE_DIR / os.getenv("LOGS_DIR", "logs")
