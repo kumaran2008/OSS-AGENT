@@ -40,18 +40,33 @@ class CodingAgent:
             return ImplementationPlan(**data)
         except Exception:
             return ImplementationPlan(summary=res, files_to_modify=[], steps=[])
-
-    def generate_file_patch(self, issue: IssueInfo, plan: ImplementationPlan, file_path: str) -> str:
+     def generate_file_patch(self, issue: IssueInfo, plan: ImplementationPlan, file_path: str,
+                             already_modified: dict = None) -> str:
         try:
             current_content = self.fs.read_file(file_path)
         except FileNotFoundError:
-            current_content = "(file does not exist yet — create it)"
+             current_content = "(file does not exist yet — create it)"
 
-        prompt = (
-            f"Issue: {issue.title}\n{issue.body}\n\n"
-            f"Plan summary: {plan.summary}\nSteps: {plan.steps}\n\n"
-            f"File to modify: {file_path}\n--- current content ---\n{current_content}\n--- end ---"
-        )
+         related_context = ""
+         if already_modified:
+             sections = []
+             for other_path, other_content in already_modified.items():
+                 # Cap each related file's contribution to keep prompt size sane
+                 # on plans touching many files.
+                 truncated = other_content[:2000]
+                 suffix = "\n... (truncated)" if len(other_content) > 2000 else ""
+                 sections.append(f"--- already modified in this plan: {other_path} ---\n{truncated}{suffix}")
+             related_context = "\n\n".join(sections) + "\n\n"
+
+         prompt = (
+             f"Issue: {issue.title}\n{issue.body}\n\n"
+             f"Plan summary: {plan.summary}\nSteps: {plan.steps}\n\n"
+             f"{related_context}"
+             f"File to modify: {file_path}\n--- current content ---\n{current_content}\n--- end ---\n\n"
+             f"If any files already modified above reference or are referenced by "
+             f"this file (function calls, imports, shared constants), keep this "
+             f"file consistent with those changes."
+         )
         try:
             res, model_used = self.router.complete_with_fallback(
                 "coding",
@@ -65,8 +80,17 @@ class CodingAgent:
 
         return _extract_code_block(res)
 
-    def apply_plan(self, issue: IssueInfo, plan: ImplementationPlan) -> None:
-        for file_path in plan.files_to_modify:
-            new_content = self.generate_file_patch(issue, plan, file_path)
-            self.fs.write_file(file_path, new_content)
-            print(f"[CodingAgent] wrote {file_path} ({len(new_content)} chars)")
+     def apply_plan(self, issue: IssueInfo, plan: ImplementationPlan) -> None:
+         """
+         Writes each file in the plan, sharing context of files already
+         modified earlier in the same plan — so a change to auth.py can
+         inform how models.py gets written right after, instead of each
+         file being generated in total isolation from the others.
+         """
+         already_modified: dict = {}  # file_path -> new content written this run
+
+         for file_path in plan.files_to_modify:
+             new_content = self.generate_file_patch(issue, plan, file_path, already_modified)
+             self.fs.write_file(file_path, new_content)
+             already_modified[file_path] = new_content
+             print(f"[CodingAgent] wrote {file_path} ({len(new_content)} chars)")
