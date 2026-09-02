@@ -21,7 +21,7 @@ from agent.reviewer_agent import ReviewerAgent
 from repository.context import RepositoryContext
 from ui.sprite_renderer import sprite
 from tools.repo_guard import format_guard_report
-from tools.tests import parse_failing_tests
+
 
 def _confirm(prompt: str) -> bool:
     return input(f"{prompt} [y/N]: ").strip().lower() == "y"
