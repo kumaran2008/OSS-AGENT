@@ -4,8 +4,8 @@ from llm.router import ModelRouter, AllModelsFailedError
 from llm.validators import is_valid_json_object, is_non_empty_code_block
 from llm.prompts import SYSTEM_PLANNING_PROMPT, SYSTEM_CODING_PROMPT
 from tools.filesystem import SafeFileSystem
+from tools.search import CodeSearcher
 from models.schemas import IssueInfo, ImplementationPlan
-
 
 def _extract_code_block(text: str) -> str:
     match = re.search(r"```(?:\w+)?\n(.*?)```", text, re.DOTALL)
@@ -16,11 +16,55 @@ def _extract_json(text: str) -> str:
     match = re.search(r"\{.*\}", text, re.DOTALL)
     return match.group(0) if match else text
 
-
 class CodingAgent:
     def __init__(self, router: ModelRouter, fs: SafeFileSystem):
         self.router = router
         self.fs = fs
+        self.searcher = CodeSearcher(fs)
+
+    def _find_referencing_files(self, file_path: str, current_content: str, max_snippets: int = 3) -> str:
+        """
+        Extracts top-level function/class names defined in this file, then
+        searches the rest of the repo for other files that reference them.
+        This is a lightweight, regex-based stand-in for real call-graph
+        tracing — not AST-based, but enough to catch 'this file's function
+        got renamed, who else calls it' style connections without the
+        overhead of a full semantic index.
+        """
+        names = re.findall(r'^\s*(?:def|class)\s+(\w+)', current_content, re.MULTILINE)
+        names = list(dict.fromkeys(names))[:5]  # dedupe, cap how many symbols we search for
+
+        if not names:
+            return ""
+
+        found_snippets = []
+        seen_files = set()
+
+        for name in names:
+            if len(found_snippets) >= max_snippets:
+                break
+            hits = self.searcher.search_symbol_or_text(name, max_results=10)
+            for hit in hits:
+                hit_file = hit["file"]
+                if hit_file == file_path or hit_file in seen_files:
+                    continue
+                if hit_file.startswith(".git/") or hit_file.startswith("workspace/"):
+                    continue
+                seen_files.add(hit_file)
+                found_snippets.append(
+                    f"--- {hit_file} references '{name}' (line {hit['line']}): {hit['content']} ---"
+                )
+                if len(found_snippets) >= max_snippets:
+                    break
+
+        if not found_snippets:
+            return ""
+
+        return (
+            "\n\nOther files in this repo reference symbols defined in the file "
+            "you're about to modify. Keep those callers in mind so this change "
+            "doesn't break them:\n" + "\n".join(found_snippets) + "\n"
+        )
 
     def generate_plan(self, issue: IssueInfo, context: str) -> ImplementationPlan:
         prompt = f"Issue Title: {issue.title}\nIssue Body: {issue.body}\n\nCodebase Context:\n{context}"
@@ -40,33 +84,35 @@ class CodingAgent:
             return ImplementationPlan(**data)
         except Exception:
             return ImplementationPlan(summary=res, files_to_modify=[], steps=[])
-     def generate_file_patch(self, issue: IssueInfo, plan: ImplementationPlan, file_path: str,
+
+    def generate_file_patch(self, issue: IssueInfo, plan: ImplementationPlan, file_path: str,
                              already_modified: dict = None) -> str:
         try:
             current_content = self.fs.read_file(file_path)
         except FileNotFoundError:
-             current_content = "(file does not exist yet — create it)"
+            current_content = "(file does not exist yet — create it)"
 
-         related_context = ""
-         if already_modified:
-             sections = []
-             for other_path, other_content in already_modified.items():
-                 # Cap each related file's contribution to keep prompt size sane
-                 # on plans touching many files.
-                 truncated = other_content[:2000]
-                 suffix = "\n... (truncated)" if len(other_content) > 2000 else ""
-                 sections.append(f"--- already modified in this plan: {other_path} ---\n{truncated}{suffix}")
-             related_context = "\n\n".join(sections) + "\n\n"
+        related_context = ""
+        if already_modified:
+            sections = []
+            for other_path, other_content in already_modified.items():
+                truncated = other_content[:2000]
+                suffix = "\n... (truncated)" if len(other_content) > 2000 else ""
+                sections.append(f"--- already modified in this plan: {other_path} ---\n{truncated}{suffix}")
+            related_context = "\n\n".join(sections) + "\n\n"
 
-         prompt = (
-             f"Issue: {issue.title}\n{issue.body}\n\n"
-             f"Plan summary: {plan.summary}\nSteps: {plan.steps}\n\n"
-             f"{related_context}"
-             f"File to modify: {file_path}\n--- current content ---\n{current_content}\n--- end ---\n\n"
-             f"If any files already modified above reference or are referenced by "
-             f"this file (function calls, imports, shared constants), keep this "
-             f"file consistent with those changes."
-         )
+        reference_context = self._find_referencing_files(file_path, current_content)
+
+        prompt = (
+            f"Issue: {issue.title}\n{issue.body}\n\n"
+            f"Plan summary: {plan.summary}\nSteps: {plan.steps}\n\n"
+            f"{related_context}"
+            f"File to modify: {file_path}\n--- current content ---\n{current_content}\n--- end ---"
+            f"{reference_context}\n"
+            f"If any files already modified above reference or are referenced by "
+            f"this file (function calls, imports, shared constants), keep this "
+            f"file consistent with those changes."
+        )
         try:
             res, model_used = self.router.complete_with_fallback(
                 "coding",
@@ -76,21 +122,15 @@ class CodingAgent:
             print(f"[CodingAgent] {file_path} patched by {model_used}")
         except AllModelsFailedError as e:
             print(f"[CodingAgent] coding failed on every model for {file_path}: {e}")
-            return current_content  # leave file unchanged rather than corrupt it
+            return current_content
 
         return _extract_code_block(res)
 
-     def apply_plan(self, issue: IssueInfo, plan: ImplementationPlan) -> None:
-         """
-         Writes each file in the plan, sharing context of files already
-         modified earlier in the same plan — so a change to auth.py can
-         inform how models.py gets written right after, instead of each
-         file being generated in total isolation from the others.
-         """
-         already_modified: dict = {}  # file_path -> new content written this run
+    def apply_plan(self, issue: IssueInfo, plan: ImplementationPlan) -> None:
+        already_modified: dict = {}
 
-         for file_path in plan.files_to_modify:
-             new_content = self.generate_file_patch(issue, plan, file_path, already_modified)
-             self.fs.write_file(file_path, new_content)
-             already_modified[file_path] = new_content
-             print(f"[CodingAgent] wrote {file_path} ({len(new_content)} chars)")
+        for file_path in plan.files_to_modify:
+            new_content = self.generate_file_patch(issue, plan, file_path, already_modified)
+            self.fs.write_file(file_path, new_content)
+            already_modified[file_path] = new_content
+            print(f"[CodingAgent] wrote {file_path} ({len(new_content)} chars)")
