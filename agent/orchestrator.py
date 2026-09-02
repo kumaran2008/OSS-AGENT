@@ -154,7 +154,7 @@ Labels: {issue.labels}
             run_logger.finalize()
             return
 
-        context = RepositoryContext(repo_dir).assemble_context()
+        context = RepositoryContext(repo_dir).assemble_context(issue.title, issue.body)
 
         sprite.set_state("thinking")
         sprite.newline()
@@ -214,8 +214,8 @@ Steps:
         code, output = test_runner.run_suite()
 
         
-        baseline_failures = parse_failing_tests(baseline_output)
-        post_failures = parse_failing_tests(output)
+        baseline_failures = test_runner.parse_failing_tests(baseline_output)
+        post_failures = test_runner.parse_failing_tests(output)
         new_failures = post_failures - baseline_failures
 
         # If post-patch failures contain NO NEW failing tests compared to baseline,
@@ -293,6 +293,50 @@ Steps:
         print("\n=== Requesting code review ===")
         review = self.reviewer_agent.review(issue, diff)
 
+        review_retries = 0
+        max_review_retries = settings.MAX_DEBUG_RETRIES
+
+        while not review.approved and review_retries < max_review_retries:
+            print(f"""
+============================================================
+REVIEW REJECTED (attempt {review_retries + 1}/{max_review_retries})
+============================================================
+Feedback: {review.feedback}
+============================================================
+Revising and re-reviewing...
+""")
+            sprite.set_state("troubled")
+            sprite.newline()
+
+            for file_path in plan.files_to_modify:
+                coding_agent.revise_file_patch(issue, plan, file_path, review.feedback)
+
+            print("\n=== Re-running tests after revision ===")
+            code, output = test_runner.run_suite()
+            if code == -2:
+                sprite.set_state("sad")
+                sprite.newline()
+                print(output)
+                run_logger.set_outcome("failed_missing_repo_dependency")
+                run_logger.note("host environment issue during review-retry revision")
+                run_logger.attach_model_calls(self.router.call_log)
+                run_logger.finalize()
+                return
+            if code != 0:
+                print("Revision broke the tests. Stopping before push.")
+                sprite.set_state("sad")
+                run_logger.set_test_result(passed=False, retries_used=retries)
+                run_logger.set_review_result(approved=False)
+                run_logger.set_outcome("failed")
+                run_logger.attach_model_calls(self.router.call_log)
+                run_logger.finalize()
+                return
+
+            diff = git_tools.get_diff()
+            print("\n=== Re-requesting code review ===")
+            review = self.reviewer_agent.review(issue, diff)
+            review_retries += 1
+
         print(f"""
 ============================================================
 FINAL DIFF
@@ -305,15 +349,15 @@ Review feedback: {review.feedback}
 ============================================================
 """)
         if not review.approved:
-            print("Reviewer did not approve. Stopping before push.")
+            print(f"Reviewer still did not approve after {max_review_retries} revision attempt(s). Stopping before push.")
             sprite.set_state("sad")
             run_logger.set_test_result(passed=True, retries_used=retries)
             run_logger.set_review_result(approved=False)
             run_logger.set_outcome("failed")
+            run_logger.note(f"review rejected after {review_retries} revision attempt(s)")
             run_logger.attach_model_calls(self.router.call_log)
             run_logger.finalize()
             return
-
         if self.dry_run:
             print("\n[DRY RUN] Stopping here — no push or PR will be created.")
             run_logger.set_test_result(passed=True, retries_used=retries)

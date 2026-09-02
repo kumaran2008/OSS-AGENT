@@ -125,7 +125,40 @@ class CodingAgent:
             return current_content
 
         return _extract_code_block(res)
+    def revise_file_patch(self, issue: IssueInfo, plan: ImplementationPlan, file_path: str,
+                           review_feedback: str) -> str:
+        """
+        Rewrites a file in response to reviewer feedback — used when the
+        ReviewerAgent rejects a diff, so the agent gets a chance to fix
+        the actual problem instead of the run just dead-ending.
+        """
+        try:
+            current_content = self.fs.read_file(file_path)
+        except FileNotFoundError:
+            current_content = "(file does not exist)"
 
+        prompt = (
+            f"Issue: {issue.title}\n{issue.body}\n\n"
+            f"Plan summary: {plan.summary}\n\n"
+            f"A code reviewer rejected the previous version of this file with this feedback:\n"
+            f"--- REVIEWER FEEDBACK ---\n{review_feedback}\n--- END FEEDBACK ---\n\n"
+            f"File to revise: {file_path}\n--- current content ---\n{current_content}\n--- end ---\n\n"
+            f"Address the reviewer's specific concerns. Do not leave gaps or incomplete "
+            f"documentation/logic — if something is removed, replace it with something correct, "
+            f"never leave it blank."
+        )
+        try:
+            res, model_used = self.router.complete_with_fallback(
+                "coding",
+                [{"role": "system", "content": SYSTEM_CODING_PROMPT}, {"role": "user", "content": prompt}],
+                validate_fn=is_non_empty_code_block,
+            )
+            print(f"[CodingAgent] {file_path} revised per review feedback by {model_used}")
+        except AllModelsFailedError as e:
+            print(f"[CodingAgent] revision failed on every model for {file_path}: {e}")
+            return current_content
+
+        return _extract_code_block(res)
     def apply_plan(self, issue: IssueInfo, plan: ImplementationPlan) -> None:
         already_modified: dict = {}
 

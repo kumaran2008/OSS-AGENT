@@ -144,7 +144,24 @@ class RepoGuard:
                 reason="Cargo.toml found but the Rust toolchain (cargo) is not installed on this host.",
                 install_command=_install_cmd("cargo", self.platform),
             ))
-
+        # --- C/C++ projects ---
+        if has("CMakeLists.txt") and not shutil.which("cmake"):
+            missing.append(MissingDependency(
+                component="cmake",
+                reason="CMakeLists.txt found but cmake is not installed on this host.",
+                install_command={"termux": "pkg install cmake -y", "mac": "brew install cmake",
+                                  "linux": "sudo apt install cmake -y",
+                                  "windows": "winget install Kitware.CMake"}.get(self.platform, "Install cmake manually"),
+            ))
+        if has("meson.build") and not shutil.which("meson"):
+            missing.append(MissingDependency(
+                component="meson",
+                reason="meson.build found but meson is not installed on this host.",
+                install_command={"termux": "pip install meson ninja --break-system-packages",
+                                  "mac": "brew install meson ninja",
+                                  "linux": "sudo apt install meson ninja-build -y",
+                                  "windows": "pip install meson ninja"}.get(self.platform, "pip install meson ninja"),
+            ))
         # --- Makefile-driven builds ---
         if has("Makefile") and not shutil.which("make"):
             missing.append(MissingDependency(
