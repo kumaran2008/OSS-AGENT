@@ -2,6 +2,7 @@ import click
 from config.settings import validate_settings
 from agent.orchestrator import Orchestrator
 from config.settings import validate_settings, settings
+from tools.environment_setup import EnvironmentBootstrapper
 
 @click.command()
 @click.option("--query", default=None, help="GitHub repo search query, e.g. 'language:python stars:>500'")
@@ -12,6 +13,7 @@ def run(query, repo, issue, dry_run):
     """OSS Contribution Agent — autonomous GitHub issue fixer with human approval gates."""
     validate_settings()
     settings.validate_task_chains()
+    EnvironmentBootstrapper().bootstrap_environment()
 
     if issue and not repo:
         raise click.UsageError("--issue requires --repo to also be set (e.g. --repo owner/name --issue 123)")

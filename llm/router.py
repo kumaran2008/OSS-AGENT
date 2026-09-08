@@ -1,9 +1,11 @@
+import os
 import time
 import requests
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, Any
 from config.settings import settings
 from llm.openrouter import OpenRouterClient
 from models.schemas import ModelCallLog
+from tools.scrubber import sanitize_messages
 
 
 class AllModelsFailedError(Exception):
@@ -11,40 +13,94 @@ class AllModelsFailedError(Exception):
     pass
 
 
+class LocalOllamaClient:
+    """OpenAI-compatible client for local Ollama / Llama execution."""
+    def __init__(self, base_url: str = None):
+        self.base_url = base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+
+    def complete(self, model: str, messages: List[Dict[str, str]], temperature: float = 0.2) -> Tuple[str, Dict[str, Any]]:
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature
+        }
+        res = requests.post(f"{self.base_url}/chat/completions", json=payload, timeout=180)
+        res.raise_for_status()
+        data = res.json()
+        content = data["choices"][0]["message"]["content"]
+        usage = data.get("usage", {})
+        return content, usage
+
+
 class ModelRouter:
     """
-    Routes each task to a prioritized chain of models. On failure (API
-    error, timeout, or output that fails validation), falls through to
-    the next model in the chain.
-
-    If ENABLE_DYNAMIC_MODEL_FALLBACK is set and the entire static chain
-    for a task fails, queries OpenRouter's live /models catalog for
-    additional candidates — filtered by a hard cost ceiling and minimum
-    context length, never by name-substring guessing — and tries up to
-    5 of those before giving up entirely.
-
-    Every attempt (static or dynamic, success or failure) is recorded
-    in self.call_log, with was_dynamic distinguishing the two so run
-    history stays analyzable.
+    Routes tasks intelligently based on hardware capabilities and account
+    token balance. Supports local Ollama as well as balance-maintained
+    OpenRouter tiers.
     """
 
-    def __init__(self, task_chains: Dict[str, List[str]], client: Optional[OpenRouterClient] = None):
+    def __init__(
+        self,
+        task_chains: Dict[str, List[str]],
+        client: Optional[OpenRouterClient] = None,
+        mode: str = "openrouter"
+    ):
         self.task_chains = task_chains
         self.openrouter_client = client or OpenRouterClient()
+        self.local_client = LocalOllamaClient()
+        self.mode = mode
         self.last_used_model: Dict[str, str] = {}
         self.call_log: List[ModelCallLog] = []
-        self._dynamic_model_cache: Optional[Tuple[float, list]] = None  # (fetched_at, models)
-        self._direct_clients = {}  # lazy-loaded: "anthropic-direct" / "openai-direct" / "google-direct"
+        self._dynamic_model_cache: Optional[Tuple[float, list]] = None
+        self._direct_clients = {}
+
+    def set_mode(self, mode: str):
+        """Sets routing mode: 'local_llama' or 'openrouter'."""
+        self.mode = mode
+
+    def get_account_balance(self) -> float:
+        """
+        Queries OpenRouter's key/credits endpoints to check exact
+        available credits. Returns balance in USD. On any failure or
+        missing data, returns 0.0 — the safe assumption is "no budget",
+        not "assume plenty", since overestimating balance risks routing
+        to a model the account can't actually afford.
+        """
+        api_key = getattr(settings, "OPENROUTER_API_KEY", "") or os.getenv("OPENROUTER_API_KEY", "")
+        if not api_key:
+            return 0.0
+
+        headers = {"Authorization": f"Bearer {api_key}"}
+
+        try:
+            res = requests.get("https://openrouter.ai/api/v1/key", headers=headers, timeout=10)
+            if res.status_code == 200:
+                data = res.json().get("data", {})
+                limit = data.get("limit")
+                usage = data.get("usage", 0)
+                if limit is None or data.get("is_free_tier", False) is False:
+                    return max(0.0, float(data.get("limit_remaining", 0.0)))
+                return max(0.0, float(limit) - float(usage))
+        except Exception:
+            pass
+
+        try:
+            res = requests.get("https://openrouter.ai/api/v1/credits", headers=headers, timeout=10)
+            if res.status_code == 200:
+                data = res.json().get("data", {})
+                total_credits = data.get("total_credits", 0)
+                total_usage = data.get("total_usage", 0)
+                return max(0.0, float(total_credits) - float(total_usage))
+        except Exception:
+            pass
+
+        return 0.0
 
     def _resolve_client_and_model(self, model: str):
-        """
-        Model strings prefixed with a direct-provider tag route to that
-        provider's native API instead of OpenRouter — e.g.
-        'anthropic-direct/claude-sonnet-5' calls Anthropic's own API with
-        model='claude-sonnet-5', using ANTHROPIC_API_KEY, no OpenRouter
-        markup. Anything without one of these prefixes goes through
-        OpenRouter as before, unchanged.
-        """
+        if self.mode == "local_llama":
+            local_model = os.getenv("LOCAL_MODEL_NAME", "qwen2.5-coder:7b")
+            return self.local_client, local_model
+
         if model.startswith("anthropic-direct/"):
             if "anthropic" not in self._direct_clients:
                 from llm.providers import AnthropicDirectClient
@@ -65,7 +121,6 @@ class ModelRouter:
 
         return self.openrouter_client, model
 
-
     def complete_with_fallback(
         self,
         task: str,
@@ -73,25 +128,59 @@ class ModelRouter:
         validate_fn: Optional[Callable[[str], bool]] = None,
         temperature: float = 0.2,
     ) -> Tuple[str, str]:
-        chain = self.task_chains.get(task)
-        if not chain:
-            raise ValueError(f"No model chain configured for task '{task}'")
+        # Redact any secret-looking strings before they leave this process.
+        messages = sanitize_messages(messages)
+
+        # 1. Local Llama path, if selected
+        if self.mode == "local_llama":
+            errors = []
+            result = self._try_model(task, "local_llama", messages, validate_fn, temperature, errors, was_dynamic=False)
+            if result is not None:
+                return result
+            print("[Router] Local model execution failed. Falling back to Cloud OpenRouter...")
+
+        # 2. Cloud path with balance-aware tiering
+        balance = self.get_account_balance()
+        chain = self.task_chains.get(task, [])
+
+        if balance > 0.0:
+            print(f"[Balance Manager] Active OpenRouter credits found (${balance:.2f}).")
+            if balance < 1.00:
+                print("[Balance Manager] Low balance (<$1.00). Allocating budget-efficient paid models...")
+                chain = [
+                    "anthropic/claude-3.5-haiku",
+                    "openai/gpt-4o-mini",
+                    "qwen/qwen-2.5-coder-32b-instruct",
+                    "deepseek/deepseek-chat",
+                ]
+            else:
+                print("[Balance Manager] Healthy balance. Using configured static model chain.")
+                if not chain:
+                    chain = ["anthropic/claude-3.5-sonnet", "openai/gpt-4o"]
+        else:
+            print("[Balance Manager] Credit balance $0.00. Enforcing strict zero-cost (:free) models...")
+            chain = [m for m in chain if ":free" in m]
+            if not chain:
+                # Reuse models already verified working elsewhere in this
+                # project, rather than guessing unverified new free-model
+                # names that risk 404ing.
+                chain = ["qwen/qwen3-coder:free", "deepseek/deepseek-r1:free"]
 
         errors = []
         attempted_models = set()
 
-        # --- Static chain, exactly as before ---
         for model in chain:
             attempted_models.add(model)
             result = self._try_model(task, model, messages, validate_fn, temperature, errors, was_dynamic=False)
             if result is not None:
                 return result
 
-        # --- Dynamic fallback, opt-in only ---
-        if settings.ENABLE_DYNAMIC_MODEL_FALLBACK:
+        if settings.ENABLE_DYNAMIC_MODEL_FALLBACK or balance == 0.0:
             print(f"[Router] '{task}' — static chain exhausted, querying dynamic fallback...")
             try:
-                candidates = self._get_dynamic_candidates(task, attempted_models)
+                candidates = self._get_dynamic_candidates(
+                    task, attempted_models, zero_cost_only=(balance == 0.0), max_budget=balance
+                )
             except Exception as e:
                 errors.append(f"dynamic discovery failed: {type(e).__name__}: {e}")
                 candidates = []
@@ -149,16 +238,11 @@ class ModelRouter:
             print(f"[Router] '{task}' — succeeded via dynamic fallback: {model}")
         return result, model
 
-    def _get_dynamic_candidates(self, task: str, attempted_models: set) -> List[str]:
-        """
-        Fetches (or reuses a cached) OpenRouter model catalog, filters by
-        a hard cost ceiling and minimum context length, excludes anything
-        already attempted this call, and returns up to 5 candidate IDs.
-        Never filters by name-substring guessing.
-        """
+    def _get_dynamic_candidates(
+        self, task: str, attempted_models: set, zero_cost_only: bool = False, max_budget: float = 0.0
+    ) -> List[str]:
         models = self._fetch_model_catalog()
-
-        estimated_tokens_needed = 4000  # conservative floor; real prompts vary by task
+        estimated_tokens_needed = 4000
         max_price = settings.MAX_DYNAMIC_MODEL_PRICE_PER_MILLION
 
         candidates = []
@@ -169,12 +253,20 @@ class ModelRouter:
 
             pricing = m.get("pricing", {}) or {}
             try:
-                prompt_price_per_token = float(pricing.get("prompt", "999"))
+                prompt_price = float(pricing.get("prompt", "999"))
+                completion_price = float(pricing.get("completion", "999"))
             except (TypeError, ValueError):
                 continue
-            price_per_million = prompt_price_per_token * 1_000_000
-            if price_per_million > max_price:
-                continue
+
+            if zero_cost_only:
+                if prompt_price != 0.0 or completion_price != 0.0:
+                    continue
+            else:
+                price_per_million = prompt_price * 1_000_000
+                if price_per_million > max_price:
+                    continue
+                if max_budget < 0.50 and price_per_million > 2.0:
+                    continue
 
             context_length = m.get("context_length", 0) or 0
             if context_length < estimated_tokens_needed:
@@ -190,12 +282,13 @@ class ModelRouter:
         now = time.time()
         if self._dynamic_model_cache is not None:
             fetched_at, cached_models = self._dynamic_model_cache
-            if now - fetched_at < settings.DYNAMIC_MODEL_CACHE_TTL_SECONDS:
+            if now - fetched_at < getattr(settings, "DYNAMIC_MODEL_CACHE_TTL_SECONDS", 300):
                 return cached_models
 
         headers = {}
-        if settings.OPENROUTER_API_KEY:
-            headers["Authorization"] = f"Bearer {settings.OPENROUTER_API_KEY}"
+        api_key = getattr(settings, "OPENROUTER_API_KEY", "") or os.getenv("OPENROUTER_API_KEY", "")
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
 
         response = requests.get(
             "https://openrouter.ai/api/v1/models",
@@ -207,4 +300,3 @@ class ModelRouter:
 
         self._dynamic_model_cache = (now, models)
         return models
-

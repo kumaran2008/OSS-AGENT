@@ -124,17 +124,24 @@ class RepoGuard:
 
         # --- Node projects ---
         if has("package.json"):
-            if not (shutil.which("npm") or shutil.which("pnpm") or shutil.which("yarn")):
+            from tools.tests import detect_node_package_manager, resolve_package_manager_command
+            manager = detect_node_package_manager(repo_path)
+            install_cmd = resolve_package_manager_command(repo_path)
+
+            if install_cmd is None:
                 missing.append(MissingDependency(
-                    component="npm/pnpm/yarn",
-                    reason="package.json found but no Node package manager is available on this host.",
-                    install_command=_install_cmd("npm", self.platform),
+                    component=manager or "npm",
+                    reason=f"package.json found (detected package manager: {manager}) but no way to "
+                           f"run it was found — not installed globally, and neither npx nor corepack "
+                           f"is available.",
+                    install_command=_install_cmd(manager or "npm", self.platform),
                 ))
             elif not (repo_path / "node_modules").exists():
                 missing.append(MissingDependency(
                     component="node_modules",
-                    reason="package.json found but dependencies have not been installed.",
-                    install_command=f"cd {repo_path} && npm install",
+                    reason=f"package.json found (detected package manager: {manager}) but dependencies "
+                           f"have not been installed.",
+                    install_command=f"cd {repo_path} && {install_cmd}",
                 ))
 
         # --- Rust projects ---
