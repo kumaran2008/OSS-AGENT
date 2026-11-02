@@ -1,6 +1,7 @@
+import os
 import time
 import requests
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from config.settings import settings
 
 
@@ -27,6 +28,73 @@ def _retry_post(url: str, headers: dict, payload: dict, timeout: int = 90, retri
             time.sleep(backoff)
             backoff *= 2
     raise ProviderCallError(f"Call failed: {last_error}")
+
+
+class OllamaDirectClient:
+    """Direct client for local Ollama instances running Qwen, Llama, or Hermes."""
+
+    def __init__(self, base_url: Optional[str] = None):
+        self.base_url = base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+
+    def complete(self, model: str, messages: List[Dict[str, str]], temperature: float = 0.2) -> Tuple[str, Dict]:
+        payload = {
+            "model": model,
+            "messages": messages,
+            "options": {"temperature": temperature},
+            "stream": False,
+        }
+        data = _retry_post(f"{self.base_url}/api/chat", {"Content-Type": "application/json"}, payload, timeout=180)
+        text = data.get("message", {}).get("content", "")
+        usage = {
+            "prompt_tokens": data.get("prompt_eval_count", 0),
+            "completion_tokens": data.get("eval_count", 0),
+        }
+        return text, usage
+
+
+class HuggingFaceDirectClient:
+    """Calls Hugging Face Serverless Inference API directly."""
+
+    def __init__(self, api_key: Optional[str] = None):
+        self.api_key = api_key or getattr(settings, "HUGGINGFACE_API_KEY", "") or os.getenv("HUGGINGFACE_API_KEY", "")
+
+    def complete(self, model: str, messages: List[Dict[str, str]], temperature: float = 0.2) -> Tuple[str, Dict]:
+        if not self.api_key:
+            raise ValueError("HUGGINGFACE_API_KEY is not set.")
+
+        prompt = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in messages]) + "\nASSISTANT: "
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "inputs": prompt,
+            "parameters": {
+                "max_new_tokens": 2048,
+                "temperature": max(0.01, temperature),
+                "return_full_text": False,
+            },
+        }
+        data = _retry_post(
+            f"https://api-inference.huggingface.co/models/{model}",
+            headers=headers,
+            payload=payload,
+            timeout=120,
+        )
+
+        text = ""
+        if isinstance(data, list) and len(data) > 0:
+            text = data[0].get("generated_text", "")
+        elif isinstance(data, dict):
+            text = data.get("generated_text", "") or data.get("summary_text", "")
+        else:
+            raise ProviderCallError(f"Unexpected Hugging Face response structure: {data}")
+
+        usage = {
+            "prompt_tokens": len(prompt.split()),
+            "completion_tokens": len(text.split()),
+        }
+        return text, usage
 
 
 class AnthropicDirectClient:
@@ -125,3 +193,4 @@ class GoogleDirectClient:
             "completion_tokens": usage_raw.get("candidatesTokenCount", 0),
         }
         return text, usage
+

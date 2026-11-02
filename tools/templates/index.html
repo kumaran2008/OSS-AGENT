@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>OSS-Agent Workstation</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    :root {
+      --bg: #18191a;
+      --surface: #22252a;
+      --card: #282c34;
+      --border: rgba(255, 255, 255, 0.08);
+      --accent: #d97706; /* Warm Claude-style amber */
+      --accent-cyan: #38bdf8;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --user-msg: #2d323b;
+      --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+      --font-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      height: 100%;
+      height: 100dvh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-serif);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Minimal Navigation */
+    header {
+      height: 48px;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: rgba(24, 25, 26, 0.9);
+      backdrop-filter: blur(8px);
+      z-index: 50;
+    }
+    .brand {
+      font-weight: 600;
+      font-size: 0.9rem;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+    .header-actions { display: flex; gap: 8px; align-items: center; }
+    .badge {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .btn-toggle-telemetry {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+
+    /* Main Container */
+    .workspace-wrapper {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Claude-style Centered Chat Workspace */
+    .chat-workspace {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      position: relative;
+      background: var(--bg);
+    }
+    .chat-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 30px 16px 80px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      -webkit-overflow-scrolling: touch;
+    }
+    .chat-content-width {
+      width: 100%;
+      max-width: 760px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Message Bubbles */
+    .chat-row {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      animation: fadeIn 0.18s ease-out;
+    }
+    .chat-row.user {
+      align-items: flex-end;
+    }
+    .chat-row.user .bubble {
+      background: var(--user-msg);
+      padding: 10px 16px;
+      border-radius: 16px 16px 4px 16px;
+      font-size: 0.95rem;
+      max-width: 85%;
+      border: 1px solid var(--border);
+    }
+    .chat-row.agent {
+      align-items: flex-start;
+    }
+    .chat-row.agent .author-tag {
+      font-size: 0.72rem;
+      font-family: var(--font-mono);
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+    .chat-row.agent .bubble {
+      font-size: 0.95rem;
+      line-height: 1.65;
+      color: var(--text);
+      width: 100%;
+    }
+    .chat-row.agent pre {
+      background: #111214;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      overflow-x: auto;
+      margin: 10px 0;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+    }
+    .chat-row.agent code { font-family: var(--font-mono); color: var(--accent-cyan); }
+    .chat-row.agent ul, .chat-row.agent ol { margin-left: 20px; margin-top: 8px; }
+
+    /* Centered Input Dock */
+    .input-dock {
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+      display: flex;
+      justify-content: center;
+      background: linear-gradient(180deg, transparent, var(--bg) 40%);
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+    }
+    .input-pill {
+      width: 100%;
+      max-width: 760px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    }
+    .input-pill input {
+      flex: 1;
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 0.95rem;
+      outline: none;
+      padding: 6px 4px;
+    }
+    .btn-send {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: none;
+      color: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    /* Right Observability Drawer */
+    .telemetry-drawer {
+      width: 380px;
+      border-left: 1px solid var(--border);
+      background: #141517;
+      display: flex;
+      flex-direction: column;
+      padding: 14px;
+      gap: 14px;
+      overflow-y: auto;
+      transition: transform 0.25s ease;
+    }
+    .telemetry-drawer.hidden { display: none; }
+
+    .drawer-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .card-title {
+      font-size: 0.72rem;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Live Activity Window */
+    .activity-feed {
+      height: 140px;
+      background: #0d0e10;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .activity-line { color: #9ca3af; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .activity-line span { color: var(--accent); }
+
+    /* Specialized Masons Grid */
+    .masons-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    .mason-pill {
+      background: #1b1d22;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      opacity: 0.45;
+      transition: all 0.2s ease;
+    }
+    .mason-pill.active {
+      opacity: 1;
+      border-color: var(--accent);
+      background: rgba(217, 119, 6, 0.1);
+    }
+    .mason-name { font-size: 0.75rem; font-weight: 600; }
+    .mason-role { font-size: 0.62rem; color: var(--text-muted); font-family: var(--font-mono); }
+
+    /* AST Topology Canvas */
+    .ast-canvas-wrap {
+      height: 160px;
+      background: #0d0e10;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      position: relative;
+    }
+    canvas#ast-canvas { width: 100%; height: 100%; display: block; border-radius: 6px; }
+
+    /* Floating Squishy Bot Companion */
+    #physicsCompanion {
+      position: fixed;
+      width: 76px;
+      height: 76px;
+      bottom: 74px;
+      right: 20px;
+      z-index: 100;
+      cursor: pointer;
+      touch-action: none;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-dot"></div>
+      <span>OSS-AGENT</span>
+      <span style="color: var(--text-muted); font-weight: 400; font-size: 0.8rem;">Workstation</span>
+    </div>
+    <div class="header-actions">
+      <div class="badge" id="tier-badge">Detecting Specs...</div>
+      <button class="btn-toggle-telemetry" id="btn-toggle-telemetry">Telemetry</button>
+    </div>
+  </header>
+
+  <div class="workspace-wrapper">
+    
+    <!-- Claude-Style Clean Chat Screen -->
+    <main class="chat-workspace">
+      <div class="chat-scroll" id="chat-scroll">
+        <div class="chat-content-width" id="chat-stream">
+          <div class="chat-row agent">
+            <span class="author-tag">SUPERVISOR</span>
+            <div class="bubble">
+              Ready. Describe what you'd like to build, investigate, or review. Work is isolated in an ephemeral sandbox and requires your confirmation before any changes are finalized.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="input-dock">
+        <div class="input-pill">
+          <input type="text" id="chat-input" placeholder="Message OSS-Agent or specify a repository..." autocomplete="off" />
+          <button class="btn-send" id="btn-send">↑</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Side Observability & Masons Drawer -->
+    <aside class="telemetry-drawer" id="telemetry-drawer">
+      <div class="drawer-card">
+        <div class="card-title">Live Activity Feed</div>
+        <div class="activity-feed" id="activity-feed">
+          <div class="activity-line"><span>[SYSTEM]</span> Standby on local device.</div>
+        </div>
+      </div>
+
+      <div class="drawer-card">
+        <div class="card-title">Specialized Masons</div>
+        <div class="masons-grid">
+          <div class="mason-pill active" id="m-supervisor">
+            <span class="mason-name">Supervisor</span>
+            <span class="mason-role">Orchestrator</span>
+          </div>
+          <div class="mason-pill" id="m-builder">
+            <span class="mason-name">Builder</span>
+            <span class="mason-role">Toolchains</span>
+          </div>
+          <div class="mason-pill" id="m-coder">
+            <span class="mason-name">Coder</span>
+            <span class="mason-role">AST Patching</span>
+          </div>
+          <div class="mason-pill" id="m-tester">
+            <span class="mason-name">Tester</span>
+            <span class="mason-role">QA & Suite</span>
+          </div>
+          <div class="mason-pill" id="m-security">
+            <span class="mason-name">Security</span>
+            <span class="mason-role">RepoGuard</span>
+          </div>
+          <div class="mason-pill" id="m-reviewer">
+            <span class="mason-name">Reviewer</span>
+            <span class="mason-role">Diff Auditor</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="drawer-card">
+        <div class="card-title">AST Topology Map</div>
+        <div class="ast-canvas-wrap">
+          <canvas id="ast-canvas"></canvas>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- Floating Squishy Physics Bot -->
+  <div id="physicsCompanion">
+    <canvas id="botCanvas" width="160" height="160"></canvas>
+  </div>
+
+  <script>
+    // 1. Telemetry Drawer Toggle
+    const btnToggle = document.getElementById('btn-toggle-telemetry');
+    const drawer = document.getElementById('telemetry-drawer');
+    btnToggle.addEventListener('click', () => { drawer.classList.toggle('hidden'); });
+
+    // 2. Chat Interaction Flow
+    const chatStream = document.getElementById('chat-stream');
+    const chatScroll = document.getElementById('chat-scroll');
+    const chatInput = document.getElementById('chat-input');
+    const btnSend = document.getElementById('btn-send');
+
+    function appendMessage(role, text) {
+      const row = document.createElement('div');
+      row.className = `chat-row ${role}`;
+      if (role === 'agent') {
+        row.innerHTML = `<span class="author-tag">SUPERVISOR</span><div class="bubble">${marked.parse(text)}</div>`;
+      } else {
+        row.innerHTML = `<div class="bubble">${text}</div>`;
+      }
+      chatStream.appendChild(row);
+      chatScroll.scrollTop = chatScroll.scrollHeight;
+    }
+
+    async function sendPrompt() {
+      const prompt = chatInput.value.trim();
+      if (!prompt) return;
+
+      appendMessage('user', prompt);
+      chatInput.value = '';
+      setBotState('THINKING');
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt })
+        });
+        const data = await res.json();
+        if (data.response) {
+          appendMessage('agent', data.response);
+          setBotState('IDLE');
+        } else {
+          appendMessage('agent', `Alert: ${data.error || 'Execution halted.'}`);
+          setBotState('ERROR');
+        }
+      } catch (err) {
+        appendMessage('agent', `Connection error: ${err.message}`);
+        setBotState('ERROR');
+      }
+    }
+
+    btnSend.addEventListener('click', sendPrompt);
+    chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendPrompt(); });
+
+    // 3. Floating Squishy Avatar Physics
+    const botCvs = document.getElementById('botCanvas');
+    const bCtx = botCvs.getContext('2d');
+    let botState = "IDLE";
+    let scaleX = 1.0, scaleY = 1.0, targetScaleX = 1.0, targetScaleY = 1.0;
+    let eyeX = 0, eyeY = 0;
+
+    function setBotState(s) { botState = s; }
+    botCvs.addEventListener('click', () => { targetScaleX = 1.35; targetScaleY = 0.7; });
+
+    function renderBot() {
+      bCtx.clearRect(0, 0, botCvs.width, botCvs.height);
+      const cx = botCvs.width / 2;
+      const cy = botCvs.height / 2;
+
+      scaleX += (targetScaleX - scaleX) * 0.2;
+      scaleY += (targetScaleY - scaleY) * 0.2;
+      targetScaleX += (1.0 - targetScaleX) * 0.12;
+      targetScaleY += (1.0 - targetScaleY) * 0.12;
+
+      bCtx.save();
+      bCtx.translate(cx, cy);
+      bCtx.scale(scaleX, scaleY);
+
+      const color = botState === 'ERROR' ? '#ef4444' : botState === 'THINKING' ? '#d97706' : '#38bdf8';
+      bCtx.fillStyle = '#22252a';
+      bCtx.strokeStyle = color;
+      bCtx.lineWidth = 3;
+      bCtx.beginPath();
+      bCtx.roundRect(-28, -24, 56, 48, 14);
+      bCtx.fill();
+      bCtx.stroke();
+
+      bCtx.fillStyle = '#141517';
+      bCtx.beginPath();
+      bCtx.roundRect(-22, -18, 44, 36, 10);
+      bCtx.fill();
+
+      let targetEyeY = botState === "THINKING" ? -6 : 0;
+      eyeY += (targetEyeY - eyeY) * 0.2;
+
+      bCtx.fillStyle = color;
+      bCtx.beginPath();
+      bCtx.arc(-9, eyeY, 3.5, 0, Math.PI * 2);
+      bCtx.arc(9, eyeY, 3.5, 0, Math.PI * 2);
+      bCtx.fill();
+
+      bCtx.restore();
+      requestAnimationFrame(renderBot);
+    }
+    requestAnimationFrame(renderBot);
+
+    // 4. AST Canvas Rendering
+    const astCvs = document.getElementById('ast-canvas');
+    const aCtx = astCvs.getContext('2d');
+    const astNodes = [{ id: 'root', label: 'workspace', x: 80, y: 30 }];
+    const astLinks = [];
+
+    function resizeAst() {
+      if (!astCvs.parentElement) return;
+      astCvs.width = astCvs.parentElement.clientWidth;
+      astCvs.height = astCvs.parentElement.clientHeight;
+    }
+    window.addEventListener('resize', resizeAst);
+    setTimeout(resizeAst, 100);
+
+    function addAstNode(path) {
+      if (astNodes.find(n => n.id === path)) return;
+      const parts = path.split('/').filter(Boolean);
+      const label = parts[parts.length - 1] || path;
+      const parent = astNodes[astNodes.length - 1] || astNodes[0];
+      const node = { id: path, label, x: parent.x + (Math.random() - 0.5) * 40, y: parent.y + 24 };
+      astNodes.push(node);
+      astLinks.push({ s: parent, t: node });
+    }
+
+    function renderAst() {
+      aCtx.clearRect(0, 0, astCvs.width, astCvs.height);
+      aCtx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      for (const l of astLinks) {
+        aCtx.beginPath();
+        aCtx.moveTo(l.s.x, l.s.y);
+        aCtx.lineTo(l.t.x, l.t.y);
+        aCtx.stroke();
+      }
+      for (const n of astNodes) {
+        aCtx.fillStyle = '#d97706';
+        aCtx.beginPath();
+        aCtx.arc(n.x, n.y, 4, 0, Math.PI * 2);
+        aCtx.fill();
+        aCtx.fillStyle = '#9ca3af';
+        aCtx.font = '9px monospace';
+        aCtx.fillText(n.label.slice(0, 10), n.x + 7, n.y + 3);
+      }
+      requestAnimationFrame(renderAst);
+    }
+    requestAnimationFrame(renderAst);
+
+    // 5. Activity Feed & Mason Activation
+    const activityFeed = document.getElementById('activity-feed');
+    const seenEvts = new Set();
+
+    function setMasonActive(id) {
+      document.querySelectorAll('.mason-pill').forEach(m => m.classList.remove('active'));
+      document.getElementById('m-supervisor')?.classList.add('active');
+      document.getElementById(id)?.classList.add('active');
+    }
+
+    async function syncEvents() {
+      try {
+        const res = await fetch('/api/events');
+        const events = await res.json();
+        for (const evt of events) {
+          const key = evt.timestamp + evt.type;
+          if (seenEvts.has(key)) continue;
+          seenEvts.add(key);
+
+          if (evt.type === 'LOG_STREAM') {
+            const line = document.createElement('div');
+            line.className = 'activity-line';
+            line.innerHTML = `<span>[ACT]</span> ${evt.data.message || ''}`;
+            activityFeed.appendChild(line);
+            activityFeed.scrollTop = activityFeed.scrollHeight;
+
+            const m = (evt.data.message || '').toLowerCase();
+            if (m.includes('clone') || m.includes('fork')) setMasonActive('m-builder');
+            if (m.includes('patch') || m.includes('code')) setMasonActive('m-coder');
+            if (m.includes('test')) setMasonActive('m-tester');
+            if (m.includes('security')) setMasonActive('m-security');
+            if (m.includes('review') || m.includes('pr')) setMasonActive('m-reviewer');
+          }
+          if (evt.type === 'AST_NODE_DISCOVERED') addAstNode(evt.data.label || evt.data.path);
+          if (evt.type === 'STATE_CHANGE') setBotState(evt.data.state || 'IDLE');
+        }
+      } catch (err) {}
+    }
+    setInterval(syncEvents, 1100);
+
+    async function fetchSpecs() {
+      try {
+        const res = await fetch('/api/models');
+        const d = await res.json();
+        document.getElementById('tier-badge').innerText = `${d.tier} (${d.ram_gb} GB)`;
+      } catch (err) {}
+    }
+    fetchSpecs();
+  </script>
+</body>
+</html>

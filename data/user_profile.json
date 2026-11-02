@@ -1,0 +1,21 @@
+{
+  "user_name": "Developer",
+  "preferred_languages": [
+    "python"
+  ],
+  "preferred_style": "minimal, modular, well-tested",
+  "target_device": "workstation_pc_laptop",
+  "custom_instructions": [
+    "Always use Python 3.11 type annotations",
+    "our [[SubQuadratic_Attention]] architecture uses [[Flash_Linear_KV]] to cut memory by 60%",
+    "User actively researches sub-quadratic attention and KV-cache optimization.",
+    "User frequently verifies code with pytest; prioritize test-driven verification.",
+    "User actively inspects voice_engine.py.",
+    "our project uses CUDA for tensor acceleration",
+    "Switched project architecture from [[CUDA]] to [[Vulkan]] (active stack: Vulkan)",
+    "Reading lines 1 to 2 from voice_engine.py: from __future__ import annotations",
+    "User actively inspects universal_reader.py.",
+    "User actively inspects workspace/edge_ai_book.txt."
+  ],
+  "interaction_count": 0
+}

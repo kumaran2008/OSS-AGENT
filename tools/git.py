@@ -10,6 +10,12 @@ class GitTools:
     def checkout_branch(self, branch_name: str) -> Tuple[int, str, str]:
         return self.shell.execute(f"git checkout -b {branch_name}", auto_approve_override=True)
 
+    def create_branch(self, branch_name: str) -> Tuple[int, str, str]:
+        return self.checkout_branch(branch_name)
+
+    def diff(self) -> str:
+        return self.get_diff()
+
     def get_diff(self) -> str:
         code, stdout, _ = self.shell.execute("git diff", auto_approve_override=True)
         return stdout if code == 0 else ""

@@ -1,0 +1,19 @@
+{
+  "persona": {
+    "name": "AegisOne",
+    "wake_word": "aegisone",
+    "tone_style": "Hyper-efficient Minimalist",
+    "voice_profile": "neutral-crisp-1"
+  },
+  "operator": {
+    "call_sign": "Chief",
+    "wake_time": "07:00",
+    "sleep_time": "23:00",
+    "work_hours": "10:00 - 19:00",
+    "gym_time": "18:30 - 19:30",
+    "daily_calories_target": 2400,
+    "daily_protein_target_g": 160,
+    "preferred_ide": "vscode",
+    "preferred_shell": "bash"
+  }
+}

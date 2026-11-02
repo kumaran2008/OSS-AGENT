@@ -12,10 +12,10 @@ class RunLogger:
     This is the foundation for later analysis: which models actually
     get used, cost trends, pass/fail rates over time.
     """
-
-    def __init__(self, logs_dir: Path, dry_run: bool = False):
-        self.logs_dir = logs_dir
+    def __init__(self, logs_dir: Path = None, dry_run: bool = False):
+        self.logs_dir = logs_dir or (Path(__file__).resolve().parents[1] / "logs")
         self.logs_dir.mkdir(parents=True, exist_ok=True)
+
         self.log = RunLog(
             run_id=str(uuid.uuid4())[:8],
             started_at=datetime.now(timezone.utc).isoformat(),

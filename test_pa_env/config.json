@@ -1,0 +1,31 @@
+{
+  "version": "1.0.0",
+  "created_at": "2026-09",
+  "revision": 1,
+  "persona": {
+    "name": "AegisOne",
+    "wake_word": "aegisone",
+    "tone_style": "Hyper-efficient Minimalist",
+    "voice_profile": "neutral-crisp-1"
+  },
+  "operator": {
+    "call_sign": "Chief",
+    "wake_time": "07:00",
+    "sleep_time": "23:00",
+    "work_hours": "10:00 - 19:00",
+    "gym_time": "18:30 - 19:30",
+    "daily_calories_target": 2400,
+    "daily_protein_target_g": 160,
+    "preferred_ide": "vscode",
+    "preferred_shell": "bash"
+  },
+  "inference": {
+    "engine": "direct_api",
+    "base_url": "https://openrouter.ai/api/v1",
+    "api_key": "sk-test-mock-key",
+    "model": "deepseek-chat",
+    "app_mode": false,
+    "app_target": "chatgpt"
+  },
+  "pa_home": "/data/data/com.termux/files/home/oss-agent/test_pa_env"
+}

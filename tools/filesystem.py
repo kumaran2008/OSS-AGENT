@@ -1,11 +1,21 @@
-# tools/filesystem.py
 import os
 from pathlib import Path
-from typing import List
+from typing import Any, List, Optional
+
 
 class SafeFileSystem:
-    def __init__(self, workspace_root: Path):
+    def __init__(self, workspace_root: Path, sentinel: Optional[Any] = None):
         self.workspace_root = workspace_root.resolve()
+        if sentinel is False:
+            self.sentinel = None
+        elif sentinel is not None:
+            self.sentinel = sentinel
+        else:
+            try:
+                from agent.security.sentinel import SentinelMesh
+                self.sentinel = SentinelMesh(strict_mode=True)
+            except Exception:
+                self.sentinel = None
 
     def _validate_path(self, relative_or_absolute_path: str) -> Path:
         target_path = (self.workspace_root / relative_or_absolute_path).resolve()
@@ -22,6 +32,8 @@ class SafeFileSystem:
 
     def write_file(self, path: str, content: str) -> None:
         safe_path = self._validate_path(path)
+        if self.sentinel:
+            self.sentinel.validate_file_write(str(safe_path), content)
         safe_path.parent.mkdir(parents=True, exist_ok=True)
         with open(safe_path, "w", encoding="utf-8") as f:
             f.write(content)

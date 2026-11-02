@@ -1,3 +1,11 @@
+from dataclasses import dataclass
+
+@dataclass
+class TestResult:
+    passed: bool
+    output: str
+    returncode: int = 0
+
 import os
 import shutil
 import subprocess
@@ -5,6 +13,7 @@ from pathlib import Path
 from typing import Set, Tuple, Optional
 from tools.shell import SafeShell
 from tools.repo_guard import RepoGuard, format_guard_report
+from tools.dashboard import dashboard
 
 
 class TestRunner:
@@ -88,6 +97,8 @@ class TestRunner:
         the host — either way, through SafeShell, so confirmation and the
         dangerous-command blocklist still apply.
         """
+        dashboard.emit("LOG_STREAM", {"message": f"[TestRunner] Executing: {cmd}"})
+
         if self.use_docker:
             docker_cmd = (
                 f"docker run --rm --network none "
@@ -100,14 +111,27 @@ class TestRunner:
         else:
             print(f"[TestRunner] Executing via host shell (no Docker available): `{cmd}`")
             code, stdout, stderr = self.shell.execute(cmd, auto_approve_override=True)
+
+        if code == 0:
+            dashboard.emit("LOG_STREAM", {"message": f"[TestRunner] Command completed successfully."})
+        else:
+            dashboard.emit("LOG_STREAM", {"message": f"[TestRunner] Command failed with return code {code}."})
+
         return code, stdout + "\n" + stderr
+
+    def run_tests(self):
+        code, output = self.run_suite()
+        return TestResult(passed=(code == 0), output=output, returncode=code)
 
     def run_suite(self) -> Tuple[int, str]:
         guard_result = self.preflight_check()
         if not guard_result.ok:
+            dashboard.emit("STATE_CHANGE", {"state": "ERROR"})
+            dashboard.emit("LOG_STREAM", {"message": "[TestRunner] Preflight check failed. Host dependencies missing."})
             return -2, format_guard_report(guard_result)
 
         language = self._detect_language()
+        dashboard.emit("LOG_STREAM", {"message": f"[TestRunner] Detected repository language framework: {language}"})
 
         if language == "python":
             if (self.workspace_root / "pytest.ini").exists() or (self.workspace_root / "tests").exists():
@@ -162,6 +186,7 @@ class TestRunner:
 
     def run_lint(self) -> Tuple[int, str]:
         language = self._detect_language()
+        dashboard.emit("LOG_STREAM", {"message": f"[TestRunner] Running linter pass for {language}..."})
 
         if language == "python" and ((self.workspace_root / ".flake8").exists()
                                       or (self.workspace_root / "pyproject.toml").exists()):
@@ -193,7 +218,6 @@ class TestRunner:
         return 0, "No linter detected for this repository. Skipping."
 
 
-
 def detect_node_package_manager(repo_dir: Path) -> Optional[str]:
     """
     Detects which Node package manager a repo actually uses. Lockfiles
@@ -216,7 +240,6 @@ def detect_node_package_manager(repo_dir: Path) -> Optional[str]:
     is_termux = "TERMUX_VERSION" in os.environ or "com.termux" in os.environ.get("PREFIX", "")
     has = lambda fname: (repo_dir / fname).exists()
 
-    # 1. Lockfiles are the most reliable signal — check first.
     if has("pnpm-lock.yaml") or has("pnpm-workspace.yaml"):
         return "pnpm"
     if has("yarn.lock"):
@@ -224,8 +247,6 @@ def detect_node_package_manager(repo_dir: Path) -> Optional[str]:
     if has("bun.lockb"):
         return "npm" if is_termux else "bun"
 
-    # 2. Fall back to package.json's declared "packageManager" field,
-    # parsed properly rather than via raw substring search.
     try:
         import json as _json
         data = _json.loads(package_json.read_text(encoding="utf-8"))
@@ -250,6 +271,7 @@ def auto_install_package_manager(manager: str) -> bool:
     if shutil.which(manager):
         return True
 
+    dashboard.emit("LOG_STREAM", {"message": f"[Auto-Installer] Missing package manager '{manager}'. Attempting global install..."})
     print(f"\n[Auto-Installer] Missing package manager '{manager}' detected.")
     print(f"[Auto-Installer] Automatically downloading and installing '{manager}' globally...")
 
@@ -264,14 +286,16 @@ def auto_install_package_manager(manager: str) -> bool:
         return False
 
     try:
-        # Run auto-download in background
         res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=120)
         if res.returncode == 0 and shutil.which(manager):
+            dashboard.emit("LOG_STREAM", {"message": f"[Auto-Installer] Successfully installed '{manager}'!"})
             print(f"[Auto-Installer] Successfully installed '{manager}'!")
             return True
         else:
+            dashboard.emit("LOG_STREAM", {"message": f"[Auto-Installer Warning] Global install of '{manager}' failed."})
             print(f"[Auto-Installer Warning] Global install failed, attempting fallback...")
     except Exception as e:
+        dashboard.emit("LOG_STREAM", {"message": f"[Auto-Installer Error] Failed to auto-download {manager}: {e}"})
         print(f"[Auto-Installer Error] Failed to auto-download {manager}: {e}")
 
     return False
@@ -286,23 +310,16 @@ def resolve_package_manager_command(repo_dir: Path) -> Optional[str]:
     if manager is None:
         return None
 
-    # detect_node_package_manager() already excludes bun on Termux, so
-    # 'manager' here is never "bun" on that platform — this is just a
-    # defensive second check in case this function is ever called
-    # directly with a manager string from elsewhere.
     is_termux = "TERMUX_VERSION" in os.environ or "com.termux" in os.environ.get("PREFIX", "")
     if manager == "bun" and is_termux:
         manager = "npm"
 
-    # 1. Auto-download missing package manager if not present
     if not shutil.which(manager):
         auto_install_package_manager(manager)
 
-    # 2. Return primary command if binary now exists
     if shutil.which(manager):
         return f"{manager} install"
 
-    # 3. Fallbacks if global auto-install failed or lacks permissions
     if shutil.which("corepack"):
         return f"corepack {manager} install"
     if shutil.which("npx"):

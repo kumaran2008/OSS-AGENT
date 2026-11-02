@@ -1,0 +1,7 @@
+{
+  "is_locked": false,
+  "shutdown_initiated_at": 1789982453.5527275,
+  "duration_seconds": 86400.0,
+  "reason": "Operator requested immediate downtime.",
+  "resumed_manually": true
+}

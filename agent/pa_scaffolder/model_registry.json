@@ -1,0 +1,98 @@
+{
+  "room_assignments": {
+    "builder": "claude_reasoning",
+    "tester": "deepseek_r1",
+    "researcher": "claude_long_context",
+    "normal": "deepseek_flash",
+    "streamer": "deepseek_flash"
+  },
+  "task_assignments": {
+    "skim_extraction": "deepseek_flash",
+    "deep_reasoning": "claude_reasoning",
+    "whole_paper": "claude_long_context",
+    "experiment_code": "deepseek_coder",
+    "model": "gpt-6-astra"
+  },
+  "endpoints": {
+    "deepseek_flash": {
+      "backend_id": "deepseek_flash",
+      "provider": "deepseek",
+      "model_name": "deepseek-chat",
+      "context_window": 64000,
+      "cost_per_m_in": 0.14,
+      "cost_per_m_out": 0.28,
+      "api_base_url": "https://api.deepseek.com/v1",
+      "api_key_env_var": "DEEPSEEK_API_KEY"
+    },
+    "deepseek_r1": {
+      "backend_id": "deepseek_r1",
+      "provider": "deepseek",
+      "model_name": "deepseek-reasoner",
+      "context_window": 64000,
+      "cost_per_m_in": 0.55,
+      "cost_per_m_out": 2.19,
+      "api_base_url": "https://api.deepseek.com/v1",
+      "api_key_env_var": "DEEPSEEK_API_KEY"
+    },
+    "deepseek_coder": {
+      "backend_id": "deepseek_coder",
+      "provider": "deepseek",
+      "model_name": "deepseek-chat",
+      "context_window": 64000,
+      "cost_per_m_in": 0.14,
+      "cost_per_m_out": 0.28,
+      "api_base_url": "https://api.deepseek.com/v1",
+      "api_key_env_var": "DEEPSEEK_API_KEY"
+    },
+    "claude_reasoning": {
+      "backend_id": "claude_reasoning",
+      "provider": "anthropic",
+      "model_name": "claude-3-7-sonnet-20250219",
+      "context_window": 200000,
+      "cost_per_m_in": 3.0,
+      "cost_per_m_out": 15.0,
+      "api_base_url": "https://api.anthropic.com/v1",
+      "api_key_env_var": "ANTHROPIC_API_KEY"
+    },
+    "claude_long_context": {
+      "backend_id": "claude_long_context",
+      "provider": "anthropic",
+      "model_name": "claude-3-5-sonnet-20241022",
+      "context_window": 200000,
+      "cost_per_m_in": 3.0,
+      "cost_per_m_out": 15.0,
+      "api_base_url": "https://api.anthropic.com/v1",
+      "api_key_env_var": "ANTHROPIC_API_KEY"
+    },
+    "openai_gpt4o": {
+      "backend_id": "openai_gpt4o",
+      "provider": "openai",
+      "model_name": "gpt-4o",
+      "context_window": 128000,
+      "cost_per_m_in": 2.5,
+      "cost_per_m_out": 10.0,
+      "api_base_url": "https://api.openai.com/v1",
+      "api_key_env_var": "OPENAI_API_KEY"
+    },
+    "openrouter_gateway": {
+      "backend_id": "openrouter_gateway",
+      "provider": "openrouter",
+      "model_name": "auto",
+      "context_window": 128000,
+      "cost_per_m_in": 0.5,
+      "cost_per_m_out": 1.5,
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_key_env_var": "OPENROUTER_API_KEY"
+    },
+    "gpt-6-astra": {
+      "backend_id": "gpt-6-astra",
+      "provider": "openrouter",
+      "model_name": "openai/gpt-6-astra",
+      "context_window": 1050000,
+      "cost_per_m_in": 10.0,
+      "cost_per_m_out": 50.0,
+      "api_base_url": "https://openrouter.ai/api/v1",
+      "api_key_env_var": "OPENROUTER_API_KEY"
+    }
+  }
+}

@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+python3 "/data/data/com.termux/files/home/oss-agent/test_pa_production/runtime/pa_runtime.py" "$@"

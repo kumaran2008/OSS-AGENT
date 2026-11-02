@@ -29,6 +29,12 @@ class ImplementationPlan(BaseModel):
     files_to_modify: List[str] = []
     steps: List[str] = []
 
+    def get(self, key: str, default=None):
+        return getattr(self, key, default)
+
+    def __getitem__(self, key: str):
+        return getattr(self, key)
+
 
 class ReviewResult(BaseModel):
     approved: bool

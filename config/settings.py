@@ -46,6 +46,7 @@ class Settings:
             "review": chain_or_fallback(self.MODELS_REVIEW, self.OPENROUTER_REVIEW_MODEL),
             "debug": chain_or_fallback(self.MODELS_DEBUG, self.OPENROUTER_CODING_MODEL),
             "analysis": chain_or_fallback(self.MODELS_ANALYSIS, self.OPENROUTER_ANALYSIS_MODEL),
+            "orchestration": chain_or_fallback(self.MODELS_ANALYSIS, self.OPENROUTER_ANALYSIS_MODEL),
         }
     def validate_task_chains(self) -> None:
         """Enforces genuine independent review: the model that writes the

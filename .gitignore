@@ -5,3 +5,27 @@ __pycache__/
 .pytest_cache/
 logs/
 logs/dashboard.html
+
+# Local databases and runtime data
+*.db
+*.sqlite
+*.sqlite3
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Local analysis and generated metadata
+.archmap/
+.codeatlas/
+.adapters/
+.codex/
+.experience/
+
+# Local audio and environment data
+audio_buffers/
+
+# Secrets
+.env
+.env.*
+!.env.example
