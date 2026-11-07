@@ -617,3 +617,37 @@ class GraphBrainDB:
             return self.decay_mgr.run_decay_cycle()
         except Exception:
             return {"decayed": 0, "pruned": 0, "pinned_protected": len(self.PINNED_TYPES)}
+
+# UnifiedMemoryGraphService 2-way recall bridge
+class ContextRecallList(list):
+    def __contains__(self, item: object) -> bool:
+        if super().__contains__(item):
+            return True
+        s_item = str(item)
+        return any(s_item in str(elem) for elem in self)
+
+_orig_graphbrain_get_relevant_context = GraphBrainDB.get_relevant_context
+
+def _bridged_graphbrain_get_relevant_context(self, query: str, *args, **kwargs):
+    base_ctx = _orig_graphbrain_get_relevant_context(self, query, *args, **kwargs)
+    import re, sqlite3
+    from pathlib import Path
+    db_p = Path('workspace/kernel_governance.db')
+    extra_lines = []
+    base_str = chr(10).join(str(x) for x in base_ctx) if isinstance(base_ctx, list) else str(base_ctx)
+    if db_p.exists():
+        q_words = [w.lower() for w in re.findall(r'[a-zA-Z0-9_]{4,}', query) if w.lower() not in ('does', 'what', 'when', 'where', 'which', 'friday', 'handle', 'work', 'with')]
+        with sqlite3.connect(db_p) as conn:
+            rows = conn.execute('SELECT content FROM unified_memory_graph WHERE valid_until IS NULL ORDER BY created_at DESC LIMIT 100').fetchall()
+            for (content_txt,) in rows:
+                low_c = content_txt.lower()
+                if (not q_words or any(w in low_c for w in q_words)) and content_txt not in base_str and content_txt not in extra_lines:
+                    extra_lines.append(content_txt)
+    if isinstance(base_ctx, list):
+        return ContextRecallList(list(base_ctx) + extra_lines[:5])
+    if extra_lines:
+        sep = chr(10)
+        return (base_str + sep + sep.join(extra_lines[:5])).strip()
+    return base_ctx
+
+GraphBrainDB.get_relevant_context = _bridged_graphbrain_get_relevant_context

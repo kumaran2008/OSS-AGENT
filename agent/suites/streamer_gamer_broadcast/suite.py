@@ -193,4 +193,18 @@ class StreamerGamerBroadcastSuite:
         }
 
 
+
+    def check_dead_air_and_banter(self, event_type: str = 'clutch', chat_lines: list = None) -> Dict[str, Any]:
+        '''Integrates FILE 14 (StreamInteractionDirector) for dead-air hooks and brotherly banter.'''
+        from agent.core.stream_director import StreamInteractionDirector
+        director = getattr(self, '_interaction_director', None)
+        if director is None:
+            director = StreamInteractionDirector(cohost_name='Friday')
+            self._interaction_director = director
+        for msg in (chat_lines or []):
+            director.ingest_chat_message(msg.get('user', 'viewer'), msg.get('message', ''))
+        vibe = director.aggregate_chat_vibe()
+        banter = director.craft_brother_banter(event_type)
+        return {'vibe': vibe, 'banter': banter, 'dead_air_check': director.check_dead_air()}
+
 streamer_gamer_suite = StreamerGamerBroadcastSuite()

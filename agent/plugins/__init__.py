@@ -9,3 +9,4 @@ from agent.plugins.mcp_bridge_plugin import MCPClientBridgePlugin
 # Backward-compatible aliases so any existing import in jev_router.py succeeds:
 MCPBridgePlugin = MCPClientBridgePlugin
 YouTubeStagedPlugin = YouTubePlugin
+from agent.plugins.orynx_builder_plugin import OrynxBuilderPlugin, orynx_builder_plugin

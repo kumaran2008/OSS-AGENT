@@ -140,4 +140,18 @@ class BuilderCursorLovableSuite:
         }
 
 
+
+    def run_prm_ast_guard_and_git_status(self, file_path: str, candidate_code: str) -> Dict[str, Any]:
+        '''Integrates FILE 19 (ProcessRewardGuard) and FILE 18 (GitBridge) for coding workspaces.'''
+        from agent.guardrails.prm_verifier import prm_guard
+        from agent.git_bridge import GitBridge
+        prm_res = prm_guard.verify_python_code(candidate_code, filepath=file_path)
+        git_b = GitBridge(Path.cwd())
+        return {
+            'prm_ast_valid': prm_res.valid,
+            'prm_score': prm_res.score,
+            'prm_error': prm_res.error_message,
+            'git_repo_active': git_b.is_git_repo(),
+        }
+
 builder_suite = BuilderCursorLovableSuite()

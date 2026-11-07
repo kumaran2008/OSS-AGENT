@@ -792,4 +792,12 @@ class ActionBudgetModelBroker:
         }
 
 
+
+    def check_live_credentials_status(self) -> Dict[str, bool]:
+        '''Integrates FILE 13 (DynamicAuthManager) to inspect configured cloud API keys.'''
+        from agent.core.dynamic_auth import auth_manager
+        return auth_manager.detect_missing_credentials()
+
+model_broker = ActionBudgetModelBroker()
+
 model_broker = ActionBudgetModelBroker()

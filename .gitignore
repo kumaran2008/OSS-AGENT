@@ -1,31 +1,23 @@
-.env
-workspace/
-__pycache__/
-*.pyc
-.pytest_cache/
-logs/
-logs/dashboard.html
-
-# Local databases and runtime data
-*.db
-*.sqlite
-*.sqlite3
-
-# Python cache
-__pycache__/
-*.py[cod]
-
-# Local analysis and generated metadata
-.archmap/
-.codeatlas/
-.adapters/
-.codex/
-.experience/
-
-# Local audio and environment data
-audio_buffers/
-
-# Secrets
+# Environment & Secrets
 .env
 .env.*
 !.env.example
+
+# Python bytecode & caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Runtime workspaces, databases & logs
+workspace/
+logs/
+data/*.db
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+archive_legacy/
+.experience/
+.codex/

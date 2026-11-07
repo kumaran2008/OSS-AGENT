@@ -281,3 +281,45 @@ class IsolatedSubprocessSandbox:
 
 
 sandbox_executor = IsolatedSubprocessSandbox()
+
+
+class _OrynxSubprocessSandboxAdapter:
+    """Guarantees `subprocess_sandbox.execute_sandboxed(cmd_list, cwd, timeout_s)` across all suites."""
+
+    def execute_sandboxed(
+        self,
+        cmd_list: list[str],
+        cwd: str | None = None,
+        timeout_s: float = 10.0,
+    ) -> dict[str, object]:
+        t0 = time.perf_counter()
+        clean_env = {
+            k: v for k, v in os.environ.items()
+            if not any(secret in k.upper() for secret in ("API_KEY", "SECRET", "TOKEN", "PASSWORD"))
+        }
+        clean_env["PYTHONDONTWRITEBYTECODE"] = "1"
+        try:
+            proc = subprocess.run(
+                cmd_list,
+                cwd=cwd,
+                env=clean_env,
+                capture_output=True,
+                text=True,
+                timeout=timeout_s,
+            )
+            return {
+                "exit_code": proc.returncode,
+                "stdout": proc.stdout or "",
+                "stderr": proc.stderr or "",
+                "execution_ms": round((time.perf_counter() - t0) * 1000.0, 2),
+            }
+        except Exception as exc:
+            return {
+                "exit_code": 1,
+                "stdout": "",
+                "stderr": str(exc),
+                "execution_ms": round((time.perf_counter() - t0) * 1000.0, 2),
+            }
+
+
+subprocess_sandbox = _OrynxSubprocessSandboxAdapter()

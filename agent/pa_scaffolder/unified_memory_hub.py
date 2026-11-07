@@ -1096,33 +1096,5 @@ class UnifiedMemoryHub:
 memory_hub = UnifiedMemoryHub()
 
 # UnifiedMemoryGraphService 2-way recall bridge
-_gb_cls = memory_hub.graph_brain.__class__
-_orig_gb_get_relevant_context = _gb_cls.get_relevant_context
-
-def _bridged_gb_get_relevant_context(self, query: str, top_k: int = 5) -> str:
-    base_ctx = _orig_gb_get_relevant_context(self, query, top_k=top_k)
-    try:
-        import re, sqlite3
-        from agent.memory_graph.memory_service import unified_memory_service
-        extra_lines = []
-        scoped = unified_memory_service.retrieve_scoped_memories(query, top_k=top_k)
-        for r in scoped.get('results', []):
-            c = r.get('content', '')
-            if c and c not in base_ctx and c not in extra_lines:
-                extra_lines.append(c)
-        q_words = [w.lower() for w in re.findall(r'[a-zA-Z0-9_]{4,}', query) if w.lower() not in ('does', 'what', 'when', 'where', 'which', 'friday', 'handle', 'work')]
-        if q_words and unified_memory_service.DB_PATH.exists():
-            with sqlite3.connect(unified_memory_service.DB_PATH) as conn:
-                rows = conn.execute("SELECT content FROM unified_memory_nodes WHERE status = 'ACTIVE' ORDER BY updated_at DESC LIMIT 50").fetchall()
-                for (content_txt,) in rows:
-                    low_c = content_txt.lower()
-                    if any(w in low_c for w in q_words) and content_txt not in base_ctx and content_txt not in extra_lines:
-                        extra_lines.append(content_txt)
-        if extra_lines:
-            sep = chr(10)
-            return (base_ctx + sep + sep.join(extra_lines[:top_k])).strip()
-    except Exception:
-        pass
-    return base_ctx
-
-_gb_cls.get_relevant_context = _bridged_gb_get_relevant_context
+from agent.pa_scaffolder.graph_brain import _bridged_graphbrain_get_relevant_context
+memory_hub.graph_brain.__class__.get_relevant_context = _bridged_graphbrain_get_relevant_context

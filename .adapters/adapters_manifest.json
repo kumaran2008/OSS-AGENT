@@ -1,0 +1,258 @@
+{
+  "active_adapters": {
+    "test_worker": {
+      "role": "test_worker",
+      "adapter_path": ".adapters/test_worker/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 1,
+      "registered_at": 1789483469.8684871,
+      "metadata": {
+        "job_status": "STAGED",
+        "tier": "edge_low"
+      }
+    },
+    "reviewer": {
+      "role": "reviewer",
+      "adapter_path": ".adapters/reviewer/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 1,
+      "registered_at": 1789483469.8742168,
+      "metadata": {
+        "job_status": "STAGED",
+        "tier": "edge_low"
+      }
+    },
+    "mason_backend_mason": {
+      "role": "mason_backend_mason",
+      "adapter_path": ".adapters/mason_backend_mason/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 1,
+      "registered_at": 1789483469.8789139,
+      "metadata": {
+        "job_status": "STAGED",
+        "tier": "edge_low"
+      }
+    },
+    "mason_backend": {
+      "role": "mason_backend",
+      "adapter_path": ".adapters/mason_backend/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 1,
+      "registered_at": 1789483469.881762,
+      "metadata": {
+        "job_status": "STAGED",
+        "tier": "edge_low"
+      }
+    }
+  },
+  "history": [
+    {
+      "role": "test_worker",
+      "adapter_path": ".adapters/test_worker/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 1,
+      "registered_at": 1789403925.867616,
+      "metadata": {
+        "job_status": "STAGED",
+        "tier": "edge_low"
+      }
+    },
+    {
+      "role": "reviewer",
+      "adapter_path": ".adapters/reviewer/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 1,
+      "registered_at": 1789403925.8693962,
+      "metadata": {
+        "job_status": "STAGED",
+        "tier": "edge_low"
+      }
+    },
+    {
+      "role": "mason_backend_mason",
+      "adapter_path": ".adapters/mason_backend_mason/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 1,
+      "registered_at": 1789403925.8713098,
+      "metadata": {
+        "job_status": "STAGED",
+        "tier": "edge_low"
+      }
+    },
+    {
+      "role": "test_worker",
+      "adapter_path": ".adapters/test_worker/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 1,
+      "registered_at": 1789404031.8513541,
+      "metadata": {
+        "job_status": "STAGED",
+        "tier": "edge_low"
+      }
+    },
+    {
+      "role": "reviewer",
+      "adapter_path": ".adapters/reviewer/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 1,
+      "registered_at": 1789404031.8527641,
+      "metadata": {
+        "job_status": "STAGED",
+        "tier": "edge_low"
+      }
+    },
+    {
+      "role": "mason_backend_mason",
+      "adapter_path": ".adapters/mason_backend_mason/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 2,
+      "registered_at": 1789404031.8546617,
+      "metadata": {
+        "job_status": "STAGED",
+        "tier": "edge_low"
+      }
+    },
+    {
+      "role": "test_worker",
+      "adapter_path": ".adapters/test_worker/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 1,
+      "registered_at": 1789404212.6399252,
+      "metadata": {
+        "job_status": "STAGED",
+        "tier": "edge_low"
+      }
+    },
+    {
+      "role": "reviewer",
+      "adapter_path": ".adapters/reviewer/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 1,
+      "registered_at": 1789404212.6413774,
+      "metadata": {
+        "job_status": "STAGED",
+        "tier": "edge_low"
+      }
+    },
+    {
+      "role": "mason_backend_mason",
+      "adapter_path": ".adapters/mason_backend_mason/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 2,
+      "registered_at": 1789404212.6432636,
+      "metadata": {
+        "job_status": "STAGED",
+        "tier": "edge_low"
+      }
+    },
+    {
+      "role": "test_worker",
+      "adapter_path": ".adapters/test_worker/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 1,
+      "registered_at": 1789404816.266186,
+      "metadata": {
+        "job_status": "STAGED",
+        "tier": "edge_low"
+      }
+    },
+    {
+      "role": "reviewer",
+      "adapter_path": ".adapters/reviewer/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 1,
+      "registered_at": 1789404816.269556,
+      "metadata": {
+        "job_status": "STAGED",
+        "tier": "edge_low"
+      }
+    },
+    {
+      "role": "mason_backend_mason",
+      "adapter_path": ".adapters/mason_backend_mason/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 1,
+      "registered_at": 1789404816.2721026,
+      "metadata": {
+        "job_status": "STAGED",
+        "tier": "edge_low"
+      }
+    },
+    {
+      "role": "mason_backend_mason",
+      "adapter_path": ".adapters/mason_backend_mason/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 5,
+      "registered_at": 1789405088.5473983,
+      "metadata": {
+        "source": "huggingface",
+        "repo_id": "test-user/oss-agent-backend-adapter"
+      }
+    },
+    {
+      "role": "test_worker",
+      "adapter_path": ".adapters/test_worker/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 1,
+      "registered_at": 1789483469.8684871,
+      "metadata": {
+        "job_status": "STAGED",
+        "tier": "edge_low"
+      }
+    },
+    {
+      "role": "reviewer",
+      "adapter_path": ".adapters/reviewer/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 1,
+      "registered_at": 1789483469.8742168,
+      "metadata": {
+        "job_status": "STAGED",
+        "tier": "edge_low"
+      }
+    },
+    {
+      "role": "mason_backend_mason",
+      "adapter_path": ".adapters/mason_backend_mason/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 1,
+      "registered_at": 1789483469.8789139,
+      "metadata": {
+        "job_status": "STAGED",
+        "tier": "edge_low"
+      }
+    },
+    {
+      "role": "mason_backend",
+      "adapter_path": ".adapters/mason_backend/final_adapter",
+      "base_model": "meta-llama/Llama-3.2-3B-Instruct",
+      "benchmark_score": 1.0,
+      "training_samples": 1,
+      "registered_at": 1789483469.881762,
+      "metadata": {
+        "job_status": "STAGED",
+        "tier": "edge_low"
+      }
+    }
+  ]
+}

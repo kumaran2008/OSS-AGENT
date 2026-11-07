@@ -4,6 +4,7 @@ import html.parser
 import os
 import platform
 import shutil
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -11,8 +12,8 @@ from typing import Any, Dict, List, Optional
 from agent.kernel.workflow_runtime import workflow_runtime
 
 
-class _DOMInteractiveExtractor(html.parser.HTMLParser):
-    def __init__(self):
+class DOMInteractiveExtractor(html.parser.HTMLParser):
+    def __init__(self) -> None:
         super().__init__()
         self.interactive_elements: List[Dict[str, str]] = []
         self.headings: List[str] = []
@@ -38,13 +39,17 @@ class _DOMInteractiveExtractor(html.parser.HTMLParser):
             el_role = self._current_attrs.get("role", t)
             href = self._current_attrs.get("href", "")
             selector = f"{t}#{el_id}" if el_id else (f"{t}[name='{el_name}']" if el_name else t)
-            self.interactive_elements.append({
-                "tag": t,
-                "selector": selector,
-                "role": el_role,
-                "label": txt[:80] or self._current_attrs.get("placeholder", "") or self._current_attrs.get("value", ""),
-                "href": href[:120],
-            })
+            self.interactive_elements.append(
+                {
+                    "tag": t,
+                    "selector": selector,
+                    "role": el_role,
+                    "label": txt[:80]
+                    or self._current_attrs.get("placeholder", "")
+                    or self._current_attrs.get("value", ""),
+                    "href": href[:120],
+                }
+            )
         elif t in ("h1", "h2", "h3") and txt:
             self.headings.append(txt[:120])
         self._current_tag = None
@@ -119,7 +124,7 @@ class ComputerActionPlan:
 
 
 class AdaptiveComputerControlBroker:
-    """6-Level Computer-Use, OS-Use & Web DOM Automation Broker Powered by TypeSafe AI `Jev`."""
+    """6-Level Computer-Use, OS-Use & Web DOM Automation Broker Powered by TypeSafe AI Jev + ORYN."""
 
     LEVEL_NAMES = {
         1: "CLI_AND_FILESYSTEM",
@@ -128,6 +133,15 @@ class AdaptiveComputerControlBroker:
         4: "APP_ADAPTER_RECIPE",
         5: "BROWSER_DOM_PLAYWRIGHT",
         6: "VISION_GUI_FALLBACK",
+    }
+
+    LEVEL_TO_ORYN_CHANNEL = {
+        1: "native_api",
+        2: "native_api",
+        3: "accessibility",
+        4: "dom",
+        5: "dom",
+        6: "vision",
     }
 
     def inspect_live_os_telemetry(self) -> Dict[str, Any]:
@@ -142,10 +156,14 @@ class AdaptiveComputerControlBroker:
             "cwd": str(Path.cwd()),
         }
 
-    def extract_dom_accessibility_tree(self, html_source: str, user_goal: str = "Complete Order") -> Dict[str, Any]:
+    def extract_dom_accessibility_tree(
+        self,
+        html_source: str,
+        user_goal: str = "Complete Order",
+    ) -> Dict[str, Any]:
         from agent.kernel.jev_ai_system1 import jev_ai_brain
 
-        parser = _DOMInteractiveExtractor()
+        parser = DOMInteractiveExtractor()
         parser.feed(html_source)
         jev_pick = jev_ai_brain.select_screen_or_dom_action(user_goal, parser.interactive_elements)
         return {
@@ -180,7 +198,6 @@ class AdaptiveComputerControlBroker:
             lvl = 5
         else:
             lvl = 6
-
         b_name = self.LEVEL_NAMES[lvl]
         discarded = [f"Level-{i} ({self.LEVEL_NAMES[i]})" for i in range(1, lvl)]
         return ComputerActionPlan(
@@ -224,7 +241,10 @@ class AdaptiveComputerControlBroker:
                 preconditions_checked=["workspace_root_allowlisted", "target_exists_or_creatable"],
                 expected_postconditions=["exit_code_zero_or_ast_valid", "sha256_manifest_verified"],
                 postcondition_verified=live_out["cpu_count"] >= 1,
-                verification_evidence=f"Level-1 OS/Filesystem verified on {target} (FreeDisk={live_out['disk_free_gb']}GB, CPUs={live_out['cpu_count']})",
+                verification_evidence=(
+                    f"Level-1 OS/Filesystem verified on {target} "
+                    f"(FreeDisk={live_out['disk_free_gb']}GB, CPUs={live_out['cpu_count']})"
+                ),
                 live_execution_output=live_out,
             )
 
@@ -242,16 +262,22 @@ class AdaptiveComputerControlBroker:
                 preconditions_checked=macro.preconditions,
                 expected_postconditions=macro.expected_postconditions,
                 postcondition_verified=True,
-                verification_evidence=f"Level-4 GuardedMacroRecipe ({macro.macro_id}) verified postconditions {macro.expected_postconditions}",
+                verification_evidence=(
+                    f"Level-4 GuardedMacroRecipe ({macro.macro_id}) verified postconditions "
+                    f"{macro.expected_postconditions}"
+                ),
                 live_execution_output={"macro_id": macro.macro_id, "route": macro.route_pattern},
             )
 
         if capability_id.startswith(("web.", "youtube.")) or html_payload:
             discarded = [
                 "Level-1 (CLI_AND_FILESYSTEM: target is a web DOM document)",
-                "Level-2 (OFFICIAL_APP_API: using direct HTTP + DOM Accessibility Tree)",
+                "Level-2 (OFFICIAL_APP_API: using direct HTTP DOM Accessibility Tree)",
             ]
-            sample_html = html_payload or "<html><body><h1>Live DOM Workspace</h1><button id='submit_btn'>Run Task</button><input name='search_query' placeholder='Search...'/></body></html>"
+            sample_html = (
+                html_payload
+                or "<html><body><h1>Live DOM Workspace</h1><button id='submit_btn'>Run Task</button><input name='search_query' placeholder='Search...'/></body></html>"
+            )
             dom_tree = self.extract_dom_accessibility_tree(sample_html, user_goal=target)
             return ComputerActionPlan(
                 selected_level=5,
@@ -260,7 +286,10 @@ class AdaptiveComputerControlBroker:
                 preconditions_checked=["http_or_local_dom_reachable", "dom_selectors_parsed"],
                 expected_postconditions=["dom_interactive_tree_extracted", "zero_vision_tokens_wasted"],
                 postcondition_verified=dom_tree["interactive_elements_count"] > 0,
-                verification_evidence=f"Level-5 DOM Accessibility Tree + TypeSafe Jev selected {dom_tree['jev_selected_operation']} on {dom_tree['jev_selected_element']} (0 vision tokens).",
+                verification_evidence=(
+                    f"Level-5 DOM Accessibility Tree + TypeSafe Jev selected "
+                    f"{dom_tree['jev_selected_operation']} on {dom_tree['jev_selected_element']} (0 vision tokens)"
+                ),
                 live_execution_output=dom_tree,
             )
 
@@ -287,6 +316,57 @@ class AdaptiveComputerControlBroker:
             verification_evidence=f"Level-6 Guarded Vision verified post-action state on {target}",
             live_execution_output={"target": target},
         )
+
+    async def execute_oryn_action(
+        self,
+        user_objective: str,
+        target_app: str = "workstation",
+        preferred_channel: Optional[str] = None,
+        operation: str = "invoke_api",
+        target_ref: Optional[str] = None,
+        text: Optional[str] = None,
+        payload: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Executes a live ComputerAction through ORYN's 6-stage engine + Layer 7 Verifier/Recovery."""
+        from agent.kernel.jev_ai_system1 import jev_ai_brain
+        from agent.oryn.action_executor import oryn_action_executor
+        from agent.oryn.capability_registry import oryn_capability_registry
+        from agent.oryn.contracts import ComputerAction
+        from agent.oryn.runtime import oryn_runtime
+
+        t0 = time.perf_counter()
+        s1_decision = jev_ai_brain.analyze_situation(transcript=user_objective)
+        cap_route = oryn_capability_registry.select_optimal_channel(
+            task_description=user_objective,
+            target_app=target_app,
+        )
+        selected_channel = preferred_channel or cap_route["selected_channel"]
+        act = ComputerAction(
+            action_id=f"oryn_{int(time.time() * 1000)}",
+            runtime_id=oryn_runtime.primary_runtime.runtime_id,
+            channel=selected_channel,  # type: ignore[arg-type]
+            operation=operation,  # type: ignore[arg-type]
+            target_ref=target_ref,
+            text=text,
+            payload=payload or {},
+        )
+        receipt = await oryn_action_executor.execute_action_with_recovery(act)
+        dur_ms = round((time.perf_counter() - t0) * 1000.0, 2)
+        return {
+            "suite": "computer_app_control",
+            "objective": user_objective,
+            "selected_channel": receipt.channel,
+            "channel_confidence": cap_route["confidence"],
+            "jev_selected_model": s1_decision.recommended_system2_model,
+            "jev_selected_model_cost_per_1m_usd": s1_decision.selected_model_cost_per_1m_usd,
+            "jev_selected_model_quality": s1_decision.selected_model_quality,
+            "jev_required_quality_floor": s1_decision.required_quality_floor,
+            "status": receipt.status,
+            "verified": receipt.verified,
+            "observed_evidence": receipt.observed_evidence,
+            "receipt": receipt.to_dict(),
+            "total_duration_ms": dur_ms,
+        }
 
 
 ComputerControlHierarchyBroker = AdaptiveComputerControlBroker
