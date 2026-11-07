@@ -215,9 +215,12 @@ async def _oryn_execute_action_batch(
     return await oryn_action_executor.execute_batch(batch)
 
 
-for _cls_name, _cls_obj in list(globals().items()):
-    if isinstance(_cls_obj, type) and "Computer" in _cls_name:
-        if not hasattr(_cls_obj, "execute_computer_objective"):
-            setattr(_cls_obj, "execute_computer_objective", _oryn_execute_computer_objective)
-        if not hasattr(_cls_obj, "execute_action_batch"):
-            setattr(_cls_obj, "execute_action_batch", _oryn_execute_action_batch)
+for _k, _v in list(globals().items()):
+    if isinstance(_v, type) and ("Computer" in _k or "Suite" in _k):
+        setattr(_v, "execute_computer_objective", _oryn_execute_computer_objective)
+        setattr(_v, "execute_action_batch", _oryn_execute_action_batch)
+
+if "computer_app_control_suite" in globals():
+    _inst = globals()["computer_app_control_suite"]
+    setattr(_inst.__class__, "execute_computer_objective", _oryn_execute_computer_objective)
+    setattr(_inst.__class__, "execute_action_batch", _oryn_execute_action_batch)

@@ -21,3 +21,26 @@ data/*.db
 archive_legacy/
 .experience/
 .codex/
+
+
+# Python / Runtime Caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.so
+
+# Local Databases & State
+workspace/kernel_governance.db
+workspace/kernel_governance.db-wal
+workspace/kernel_governance.db-shm
+workspace/.shadow_twins/
+workspace/audio_buffers/
+workspace/screen_capture.png
+workspace/uidump.xml
+workspace/oryn_*.csv
+workspace/oryn_*.txt
+
+# Secrets & Environment
+.env
+.env.*
+!.env.example

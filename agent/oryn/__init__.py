@@ -38,6 +38,14 @@ from agent.oryn.accessibility_engine import (
     CrossOSAccessibilityEngine,
     accessibility_engine,
 )
+from agent.oryn.vision_engine import (
+    LocalVisionAndGroundingEngine,
+    vision_engine,
+)
+from agent.oryn.cua_provider import (
+    FrontierCUADriver,
+    cua_provider,
+)
 from agent.oryn.verifier import (
     ORYNUniversalVerifier,
     oryn_verifier,
@@ -50,6 +58,16 @@ from agent.oryn.recovery_engine import (
 from agent.oryn.action_executor import (
     ORYNActionBatchExecutor,
     oryn_action_executor,
+)
+from agent.oryn.macro_memory import (
+    ORYNTaskMacroMemory,
+    oryn_macro_memory,
+)
+from agent.oryn.host_app_coordinator import (
+    ORYNAppAgent,
+    ORYNHostAgentCoordinator,
+    SubtaskAssignment,
+    oryn_host_coordinator,
 )
 
 __all__ = [
@@ -79,6 +97,10 @@ __all__ = [
     "browser_engine",
     "CrossOSAccessibilityEngine",
     "accessibility_engine",
+    "LocalVisionAndGroundingEngine",
+    "vision_engine",
+    "FrontierCUADriver",
+    "cua_provider",
     "ORYNUniversalVerifier",
     "oryn_verifier",
     "RecoveryDecision",
@@ -86,4 +108,10 @@ __all__ = [
     "oryn_recovery_engine",
     "ORYNActionBatchExecutor",
     "oryn_action_executor",
+    "ORYNTaskMacroMemory",
+    "oryn_macro_memory",
+    "SubtaskAssignment",
+    "ORYNAppAgent",
+    "ORYNHostAgentCoordinator",
+    "oryn_host_coordinator",
 ]

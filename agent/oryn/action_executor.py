@@ -14,14 +14,16 @@ from agent.oryn.contracts import (
     ExecutionDriver,
     ExecutionReceipt,
 )
+from agent.oryn.cua_provider import cua_provider
 from agent.oryn.native_api_engine import native_api_driver
 from agent.oryn.recovery_engine import oryn_recovery_engine
 from agent.oryn.verifier import oryn_verifier
+from agent.oryn.vision_engine import vision_engine
 
 
 class ORYNActionBatchExecutor:
     """Executes single ComputerActions and HCU-style 64-action speculative batches
-    with per-step postcondition verification and automatic Layer-7 recovery.
+    across all 6 ORYN execution stages with Layer-7 postcondition verification & recovery.
     """
 
     def __init__(self) -> None:
@@ -30,6 +32,8 @@ class ORYNActionBatchExecutor:
             "dom": browser_engine,
             "cdp": browser_engine,
             "accessibility": accessibility_engine,
+            "vision": vision_engine,
+            "frontier_cua": cua_provider,
         }
 
     def register_driver(self, channel: ChannelType, driver: ExecutionDriver) -> None:
@@ -86,9 +90,6 @@ class ORYNActionBatchExecutor:
 
     @fault_recorder.guard(subsystem="oryn.action_executor")
     async def execute_batch(self, batch: ActionBatch) -> Dict[str, Any]:
-        """Executes up to 64 ref-bound actions sequentially, halting immediately if
-        an unexpected modal appears or an unrecoverable state drift occurs.
-        """
         t0 = time.perf_counter()
         receipts: List[Dict[str, Any]] = []
         completed_count = 0
